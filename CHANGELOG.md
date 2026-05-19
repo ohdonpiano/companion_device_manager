@@ -1,3 +1,10 @@
+## Unreleased
+
+- Added `CompanionDeviceManager.backgroundEvents` for reactive `device_appeared`/`device_disappeared` updates.
+- Added Android `EventChannel` support (`companion_device_manager/events`) and native event emission from `CompanionDeviceBackgroundService`.
+- Updated the example app to reactively refresh UI and auto-log new background events from the stream.
+- Updated README and `docs/` to officially document the new reactive API.
+
 ## 0.1.0
 
 - Implemented a real Android-only Companion Device Manager plugin API.

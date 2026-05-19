@@ -15,6 +15,7 @@ The example UI contains:
 - buttons to register or clear the background callback
 - a Bluetooth MAC address field
 - a button to start association
+- a reactive listener for `backgroundEvents` (`device_appeared` / `device_disappeared`)
 - a list of currently known associations
 - the last persisted background event
 
@@ -26,7 +27,8 @@ The example UI contains:
 4. Start the association flow.
 5. Complete the system chooser.
 6. Trigger the companion device event on the Android side.
-7. Re-open the app if needed and inspect the last event.
+7. Observe the event being logged and rendered live while the app is open.
+8. Re-open the app if needed and inspect the last persisted event.
 
 ## Why the example is intentionally simple
 

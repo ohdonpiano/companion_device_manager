@@ -33,7 +33,7 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
                 "displayName" to associationInfo.displayName?.toString(),
                 "deviceProfile" to associationInfo.deviceProfile,
                 "selfManaged" to associationInfo.isSelfManaged,
-                "lastTimeConnectedMs" to associationInfo.lastTimeConnected,
+                "lastTimeConnectedMs" to null,
             ),
             "rawPayload" to mapOf<String, Any?>(
                 "type" to type,
@@ -41,6 +41,7 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         )
 
         CompanionDeviceStorage.persistEvent(context, payload)
+        CompanionDeviceEventStream.emit(payload)
 
         val callbackHandle = CompanionDeviceStorage.getBackgroundCallbackHandle(context) ?: return
         runOnMainThread {

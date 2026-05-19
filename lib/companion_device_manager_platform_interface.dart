@@ -55,4 +55,8 @@ abstract class CompanionDeviceManagerPlatform extends PlatformInterface {
   Future<CompanionDeviceEvent?> getLastBackgroundEvent() {
     throw UnimplementedError('getLastBackgroundEvent() has not been implemented.');
   }
+
+  Stream<CompanionDeviceEvent> get backgroundEvents {
+    throw UnimplementedError('backgroundEvents has not been implemented.');
+  }
 }

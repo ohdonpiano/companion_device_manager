@@ -9,6 +9,7 @@ API and provides a simple Dart-facing association flow plus a background wake ca
 - Android-only companion device association flow
 - typed Dart models for requests, associations, and events
 - background callback registration for device-appearance wake-ups
+- reactive stream for real-time `device_appeared` / `device_disappeared` events
 - stored last background event for post-wake inspection
 - example app showing the complete flow
 
@@ -75,6 +76,12 @@ Future<void> setup() async {
 
   print('Associated device: ${association.macAddress}');
 }
+
+void watchBackgroundEvents() {
+  manager.backgroundEvents.listen((event) {
+    print('Companion event: ${event.type} at ${event.timestamp}');
+  });
+}
 ```
 
 ## Background callback requirements
@@ -92,6 +99,7 @@ The example app shows how to:
 
 - register and clear the background callback
 - start an association request
+- react to real-time `backgroundEvents` while the app is running
 - inspect current associations
 - read the last persisted background event
 

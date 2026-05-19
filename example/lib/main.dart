@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:companion_device_manager/companion_device_manager.dart';
 import 'package:flutter/material.dart';
@@ -37,7 +39,9 @@ class CompanionDeviceManagerHomePage extends StatefulWidget {
 class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerHomePage> {
   final CompanionDeviceManager _manager = CompanionDeviceManager();
   final TextEditingController _addressController =
-      TextEditingController(text: '00:11:22:33:44:55');
+      TextEditingController(text: 'A7:09:65:57:B7:D6');
+  StreamSubscription<CompanionDeviceEvent>? _eventSubscription;
+  String? _lastEventSignature;
 
   bool _available = false;
   bool _callbackRegistered = false;
@@ -52,12 +56,32 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
     _refreshAvailability();
     _refreshAssociations();
     _refreshLastEvent();
+    _subscribeToBackgroundEvents();
   }
 
   @override
   void dispose() {
+    _eventSubscription?.cancel();
     _addressController.dispose();
     super.dispose();
+  }
+
+  void _subscribeToBackgroundEvents() {
+    _eventSubscription?.cancel();
+    _eventSubscription = _manager.backgroundEvents.listen(
+      (event) {
+        _applyEventUpdate(
+          event,
+          logIfChanged: true,
+          updateStatusOnChange: true,
+          logPrefix: '[CDM] New background event from stream:',
+        );
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(() => _status = 'Background event stream error: $error');
+      },
+    );
   }
 
   Future<void> _refreshAvailability() async {
@@ -93,14 +117,76 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
     }
   }
 
-  Future<void> _refreshLastEvent() async {
+  Future<void> _refreshLastEvent({
+    bool logIfChanged = false,
+    bool updateStatusOnChange = false,
+  }) async {
     try {
       final event = await _manager.getLastBackgroundEvent();
-      if (!mounted) return;
-      setState(() => _lastEventJson = event == null ? null : const JsonEncoder.withIndent('  ').convert(event.toMap()));
+      _applyEventUpdate(
+        event,
+        logIfChanged: logIfChanged,
+        updateStatusOnChange: updateStatusOnChange,
+        logPrefix: '[CDM] New background event from persisted state:',
+      );
     } on PlatformException catch (error) {
       if (!mounted) return;
       setState(() => _status = 'Unable to load the last event: ${error.message}');
+    }
+  }
+
+  void _applyEventUpdate(
+    CompanionDeviceEvent? event, {
+    required bool logIfChanged,
+    required bool updateStatusOnChange,
+    required String logPrefix,
+  }) {
+    if (!mounted) return;
+
+    final prettyJson = event == null
+        ? null
+        : const JsonEncoder.withIndent('  ').convert(event.toMap());
+    final nextSignature = event?.toJson();
+    final changed = nextSignature != _lastEventSignature;
+
+    if (!changed && _lastEventJson == prettyJson) {
+      return;
+    }
+
+    if (changed) {
+      _lastEventSignature = nextSignature;
+      if (logIfChanged) {
+        developer.log(
+          event == null ? '[CDM] Last background event cleared (null).' : '$logPrefix $prettyJson',
+          name: 'CDMExample',
+        );
+      }
+    }
+
+    setState(() {
+      _lastEventJson = prettyJson;
+      if (updateStatusOnChange && changed && event != null) {
+        _status = 'New background event received: ${event.type}';
+      }
+    });
+  }
+
+  Future<void> _logLastEvent() async {
+    try {
+      final event = await _manager.getLastBackgroundEvent();
+      _lastEventSignature = event?.toJson();
+      final message = event == null
+          ? '[CDM] No background event captured yet.'
+          : '[CDM] Last background event: ${const JsonEncoder.withIndent('  ').convert(event.toMap())}';
+      developer.log(message, name: 'CDMExample');
+      if (!mounted) return;
+      setState(() {
+        _lastEventJson = event == null ? null : const JsonEncoder.withIndent('  ').convert(event.toMap());
+        _status = event == null ? 'No background event captured yet.' : 'Last background event logged to console.';
+      });
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+      setState(() => _status = 'Unable to log the last event: ${error.message}');
     }
   }
 
@@ -254,6 +340,10 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
                     OutlinedButton(
                       onPressed: _busy ? null : _refreshLastEvent,
                       child: const Text('Reload last event'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _busy ? null : _logLastEvent,
+                      child: const Text('Log last event'),
                     ),
                   ],
                 ),

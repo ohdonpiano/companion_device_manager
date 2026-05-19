@@ -12,6 +12,11 @@ class MethodChannelCompanionDeviceManager extends CompanionDeviceManagerPlatform
   @visibleForTesting
   final methodChannel = const MethodChannel('companion_device_manager');
 
+  @visibleForTesting
+  final eventChannel = const EventChannel('companion_device_manager/events');
+
+  Stream<CompanionDeviceEvent>? _backgroundEvents;
+
   @override
   Future<bool> isAvailable() async {
     return (await methodChannel.invokeMethod<bool>('isAvailable')) ?? false;
@@ -77,5 +82,15 @@ class MethodChannelCompanionDeviceManager extends CompanionDeviceManagerPlatform
       return null;
     }
     return CompanionDeviceEvent.fromMap(result);
+  }
+
+  @override
+  Stream<CompanionDeviceEvent> get backgroundEvents {
+    return _backgroundEvents ??= eventChannel.receiveBroadcastStream().map((dynamic payload) {
+      if (payload is! Map<Object?, Object?>) {
+        throw const FormatException('Invalid background event payload type.');
+      }
+      return CompanionDeviceEvent.fromMap(payload);
+    }).asBroadcastStream();
   }
 }

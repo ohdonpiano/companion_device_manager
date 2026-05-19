@@ -32,6 +32,11 @@ class MockCompanionDeviceManagerPlatform
 
   @override
   Future<CompanionDeviceEvent?> getLastBackgroundEvent() => Future.value(null);
+
+  @override
+  Stream<CompanionDeviceEvent> get backgroundEvents => Stream<CompanionDeviceEvent>.value(
+    const CompanionDeviceEvent(type: 'device_appeared', timestampMs: 1),
+  );
 }
 
 void main() {
@@ -64,5 +69,15 @@ void main() {
     );
 
     expect(association.macAddress, '00:11:22:33:44:55');
+  });
+
+  test('backgroundEvents delegates to the platform interface', () async {
+    final CompanionDeviceManager companionDeviceManagerPlugin = CompanionDeviceManager();
+    MockCompanionDeviceManagerPlatform fakePlatform = MockCompanionDeviceManagerPlatform();
+    CompanionDeviceManagerPlatform.instance = fakePlatform;
+
+    final event = await companionDeviceManagerPlugin.backgroundEvents.first;
+
+    expect(event.type, 'device_appeared');
   });
 }

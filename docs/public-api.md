@@ -47,6 +47,15 @@ Removes the persisted background callback registration.
 
 Returns the latest persisted background event.
 
+### `Stream<CompanionDeviceEvent> backgroundEvents`
+
+Emits real-time companion device service events while the Flutter app is running.
+
+Official event `type` values emitted by this stream are:
+
+- `device_appeared`
+- `device_disappeared`
+
 ## `CompanionDeviceAssociationRequest`
 
 Represents the request used to start association.

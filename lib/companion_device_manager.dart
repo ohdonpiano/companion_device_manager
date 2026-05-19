@@ -35,6 +35,10 @@ class CompanionDeviceManager {
   Future<CompanionDeviceEvent?> getLastBackgroundEvent() {
     return CompanionDeviceManagerPlatform.instance.getLastBackgroundEvent();
   }
+
+  Stream<CompanionDeviceEvent> get backgroundEvents {
+    return CompanionDeviceManagerPlatform.instance.backgroundEvents;
+  }
 }
 
 

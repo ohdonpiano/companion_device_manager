@@ -14,6 +14,7 @@ import android.companion.CompanionDeviceManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
@@ -28,6 +29,7 @@ class CompanionDeviceManagerPlugin :
     private var activity: Activity? = null
     private var activityBinding: ActivityPluginBinding? = null
     private lateinit var channel: MethodChannel
+    private lateinit var eventsChannel: EventChannel
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingAssociationResult: Result? = null
     private var pendingAssociationRequest: AssociationRequest? = null
@@ -38,6 +40,18 @@ class CompanionDeviceManagerPlugin :
         applicationContext = flutterPluginBinding.applicationContext
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "companion_device_manager")
         channel.setMethodCallHandler(this)
+        eventsChannel = EventChannel(flutterPluginBinding.binaryMessenger, "companion_device_manager/events")
+        eventsChannel.setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+                    CompanionDeviceEventStream.attachSink(events)
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    CompanionDeviceEventStream.detachSink()
+                }
+            },
+        )
     }
 
     override fun onMethodCall(
@@ -58,6 +72,8 @@ class CompanionDeviceManagerPlugin :
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        eventsChannel.setStreamHandler(null)
+        CompanionDeviceEventStream.detachSink()
         applicationContext = null
     }
 

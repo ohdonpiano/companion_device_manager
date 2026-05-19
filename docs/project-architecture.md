@@ -33,6 +33,7 @@ The Dart API is intentionally small:
 - `CompanionDeviceManager.registerBackgroundCallback(...)`
 - `CompanionDeviceManager.clearBackgroundCallback()`
 - `CompanionDeviceManager.getLastBackgroundEvent()`
+- `CompanionDeviceManager.backgroundEvents`
 
 ### Data objects
 
@@ -47,9 +48,10 @@ This keeps the app code readable and pub.dev-friendly.
 
 ## Android implementation strategy
 
-### Method channel
+### Method channel + event channel
 
 The plugin uses a single method channel named `companion_device_manager`.
+For reactive delivery, it also exposes an event channel named `companion_device_manager/events`.
 
 The native side handles:
 
@@ -59,6 +61,8 @@ The native side handles:
 - disassociation
 - callback registration
 - last-event persistence
+
+The event channel emits `device_appeared` and `device_disappeared` payloads to Flutter while the app is running, enabling reactive UI updates without polling.
 
 ### Activity-aware association flow
 
