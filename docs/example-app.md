@@ -1,0 +1,49 @@
+# Example App Walkthrough
+
+## Purpose
+
+The example app shows how to use the plugin from Flutter and demonstrates the two core workflows:
+
+1. launching the association chooser
+2. registering a background callback that is woken by the Android companion service
+
+## What the example demonstrates
+
+The example UI contains:
+
+- a runtime availability indicator
+- buttons to register or clear the background callback
+- a Bluetooth MAC address field
+- a button to start association
+- a list of currently known associations
+- the last persisted background event
+
+## How to use the example
+
+1. Run the example on a real Android device.
+2. Register the background callback.
+3. Enter a valid companion device Bluetooth address.
+4. Start the association flow.
+5. Complete the system chooser.
+6. Trigger the companion device event on the Android side.
+7. Re-open the app if needed and inspect the last event.
+
+## Why the example is intentionally simple
+
+The example is designed for pub.dev and documentation clarity.
+It does not try to hide the Android system chooser or the pairing requirements.
+
+That makes the companion-device lifecycle easier to understand for plugin users.
+
+## Testing guidance
+
+When validating the example, remember that CDM flows depend on:
+
+- Android version
+- device profile
+- Bluetooth permissions
+- the actual companion hardware
+- user consent
+
+So the example should be treated as a real-device integration sample, not as a unit-test-only flow.
+

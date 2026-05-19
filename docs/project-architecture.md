@@ -1,0 +1,132 @@
+# Companion Device Manager Plugin Architecture
+
+## Goal
+
+This plugin provides a simple Flutter-facing API for Android's [`CompanionDeviceManager`](https://developer.android.com/reference/android/companion/CompanionDeviceManager) so an app can:
+
+1. Start a system-managed association flow.
+2. Keep track of the current associations.
+3. Register a Dart callback that is invoked when the companion device service wakes the app.
+4. Read the last background event after the app has been started again.
+
+The plugin is Android-only. On other platforms, the package is intentionally unsupported.
+
+## Product direction
+
+The plugin is designed for apps that pair with a companion device such as:
+
+- Bluetooth accessories
+- Wearables
+- Embedded controllers
+- Other Android-managed companion devices
+
+The key value of Companion Device Manager is that Android can manage the association lifecycle and can wake the app when the companion device appears or disappears, even if the app process is not currently running.
+
+## Public API shape
+
+The Dart API is intentionally small:
+
+- `CompanionDeviceManager.isAvailable()`
+- `CompanionDeviceManager.getAssociations()`
+- `CompanionDeviceManager.associate(...)`
+- `CompanionDeviceManager.disassociate(...)`
+- `CompanionDeviceManager.registerBackgroundCallback(...)`
+- `CompanionDeviceManager.clearBackgroundCallback()`
+- `CompanionDeviceManager.getLastBackgroundEvent()`
+
+### Data objects
+
+The plugin exposes typed data classes instead of raw maps:
+
+- `CompanionDeviceAssociationRequest`
+- `CompanionDeviceAssociation`
+- `CompanionDeviceEvent`
+- `CompanionDeviceFilter`
+
+This keeps the app code readable and pub.dev-friendly.
+
+## Android implementation strategy
+
+### Method channel
+
+The plugin uses a single method channel named `companion_device_manager`.
+
+The native side handles:
+
+- capability checks
+- association queries
+- association request launch
+- disassociation
+- callback registration
+- last-event persistence
+
+### Activity-aware association flow
+
+Association requires a foreground Android `Activity` because the system chooser must be launched from UI context.
+
+The plugin therefore implements `ActivityAware` and launches the system chooser via the attached activity.
+
+### Background wake flow
+
+For the wake-on-device event, the plugin uses an Android companion-device service:
+
+- the Android service is declared in the plugin manifest
+- the service stores the latest event payload in shared preferences
+- the service reads the registered Dart callback handle
+- the service starts a headless Flutter engine
+- the engine executes the registered callback in the app process
+
+This means the host app only has to provide a top-level or static Dart callback.
+
+### Event persistence
+
+The native side stores the last event payload so the app can inspect the last wake event after relaunch.
+
+This is useful because a dead app cannot directly update visible UI at the moment it is woken.
+
+## Android lifecycle considerations
+
+The plugin deliberately separates three concerns:
+
+1. **Association creation** — requires an activity.
+2. **Background wake callback** — handled by the companion service.
+3. **Post-wake inspection** — handled by `getLastBackgroundEvent()`.
+
+This makes the plugin usable in both foreground and background scenarios.
+
+## Limitations of this first release
+
+The first release focuses on the most important path:
+
+- Bluetooth MAC-address-based filters
+- Android companion association creation
+- background callback wake-up
+
+Unsupported or intentionally deferred areas:
+
+- complex device filter builders for every Android profile type
+- iOS support
+- automatic permission orchestration for every Bluetooth use case
+- custom event stream multiplexing into Dart isolates
+
+These can be added later without changing the basic architecture.
+
+## Host app requirements
+
+The host app must provide:
+
+- an Android device running API 26+ for the association API
+- a top-level or static Dart callback for background wake-up
+- any Bluetooth/runtime permissions required by the target device type
+- a real companion device to test against
+
+## Publishing notes
+
+Before publishing to pub.dev, verify that:
+
+- the README explains Android-only support clearly
+- the example app demonstrates the intended flow
+- the API names are stable and documented
+- unsupported platforms fail gracefully
+- the package version is bumped correctly
+
