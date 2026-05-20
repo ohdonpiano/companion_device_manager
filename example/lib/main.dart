@@ -12,7 +12,16 @@ void main() {
 
 @pragma('vm:entry-point')
 Future<void> companionDeviceWakeCallback() async {
-  debugPrint('[CDM] Companion device background callback invoked.');
+  final timestamp = DateTime.now();
+  final isoTime = timestamp.toIso8601String();
+  debugPrint('[CDM Background Callback] Invoked at $isoTime (${timestamp.millisecondsSinceEpoch}ms)');
+
+  // Verify this is truly executing in Dart by logging the event
+  final manager = CompanionDeviceManager();
+  final lastEvent = await manager.getLastBackgroundEvent();
+  if (lastEvent != null) {
+    debugPrint('[CDM Background Callback] Last background event: ${lastEvent.type} at ${lastEvent.timestamp}');
+  }
 }
 
 class CompanionDeviceManagerExampleApp extends StatelessWidget {
@@ -23,8 +32,44 @@ class CompanionDeviceManagerExampleApp extends StatelessWidget {
     return MaterialApp(
       title: 'Companion Device Manager Example',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-      home: const CompanionDeviceManagerHomePage(),
+      home: const _InitializeCallbackWrapper(child: CompanionDeviceManagerHomePage()),
     );
+  }
+}
+
+class _InitializeCallbackWrapper extends StatefulWidget {
+  const _InitializeCallbackWrapper({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_InitializeCallbackWrapper> createState() =>
+      _InitializeCallbackWrapperState();
+}
+
+class _InitializeCallbackWrapperState extends State<_InitializeCallbackWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _ensureCallbackRegistered();
+  }
+
+  Future<void> _ensureCallbackRegistered() async {
+    final manager = CompanionDeviceManager();
+    try {
+      await manager.registerBackgroundCallback(companionDeviceWakeCallback);
+      debugPrint('[CDM] Background callback auto-registered on app start.');
+    } on ArgumentError {
+      // Callback already registered or not a valid function
+      debugPrint('[CDM] Background callback already registered.');
+    } catch (error) {
+      debugPrint('[CDM] Error auto-registering callback: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
 
@@ -50,14 +95,25 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
   String? _lastEventJson;
   List<CompanionDeviceAssociation> _associations = <CompanionDeviceAssociation>[];
 
-  @override
-  void initState() {
-    super.initState();
-    _refreshAvailability();
-    _refreshAssociations();
-    _refreshLastEvent();
-    _subscribeToBackgroundEvents();
-  }
+   @override
+   void initState() {
+     super.initState();
+     _refreshAvailability();
+     _refreshAssociations();
+     _refreshLastEvent();
+     _checkCallbackRegistration();
+     _subscribeToBackgroundEvents();
+   }
+
+   Future<void> _checkCallbackRegistration() async {
+     try {
+       final lastEvent = await _manager.getLastBackgroundEvent();
+       if (!mounted) return;
+       setState(() => _callbackRegistered = lastEvent != null);
+     } catch (_) {
+       // If we can't get last event, assume callback might not be registered
+     }
+   }
 
   @override
   void dispose() {
@@ -190,44 +246,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
     }
   }
 
-  Future<void> _registerCallback() async {
-    setState(() => _busy = true);
-    try {
-      await _manager.registerBackgroundCallback(companionDeviceWakeCallback);
-      if (!mounted) return;
-      setState(() {
-        _callbackRegistered = true;
-        _status = 'Background wake callback registered.';
-      });
-      _showSnackBar('Background callback registered.');
-    } on ArgumentError catch (error) {
-      if (!mounted) return;
-      setState(() => _status = error.message.toString());
-    } on PlatformException catch (error) {
-      if (!mounted) return;
-      setState(() => _status = 'Unable to register callback: ${error.message}');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
 
-  Future<void> _clearCallback() async {
-    setState(() => _busy = true);
-    try {
-      await _manager.clearBackgroundCallback();
-      if (!mounted) return;
-      setState(() {
-        _callbackRegistered = false;
-        _status = 'Background callback cleared.';
-      });
-      _showSnackBar('Background callback cleared.');
-    } on PlatformException catch (error) {
-      if (!mounted) return;
-      setState(() => _status = 'Unable to clear callback: ${error.message}');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
 
   Future<void> _associate() async {
     final address = _addressController.text.trim();
@@ -318,38 +337,30 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
             child: Text(_available ? 'Available' : 'Not available'),
           ),
           const SizedBox(height: 12),
-          _InfoCard(
-            title: 'Background callback',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_callbackRegistered ? 'Registered' : 'Not registered'),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton(
-                      onPressed: _busy ? null : _registerCallback,
-                      child: const Text('Register callback'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _clearCallback,
-                      child: const Text('Clear callback'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _refreshLastEvent,
-                      child: const Text('Reload last event'),
-                    ),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _logLastEvent,
-                      child: const Text('Log last event'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+           _InfoCard(
+             title: 'Background callback',
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                 Text(_callbackRegistered ? 'Registered (auto)' : 'Not registered'),
+                 const SizedBox(height: 12),
+                 Wrap(
+                   spacing: 12,
+                   runSpacing: 12,
+                   children: [
+                     OutlinedButton(
+                       onPressed: _busy ? null : _refreshLastEvent,
+                       child: const Text('Reload last event'),
+                     ),
+                     OutlinedButton(
+                       onPressed: _busy ? null : _logLastEvent,
+                       child: const Text('Log last event'),
+                     ),
+                   ],
+                 ),
+               ],
+             ),
+           ),
           const SizedBox(height: 12),
           _InfoCard(
             title: 'Association setup',
@@ -405,13 +416,14 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
             ),
           ),
           const SizedBox(height: 12),
-          const _InfoCard(
-            title: 'Notes',
-            child: Text(
-              'The background callback must be a top-level or static function marked with @pragma(\'vm:entry-point\').\n'
-              'Android pairing also depends on the device type, user consent, and any required Bluetooth permissions.',
-            ),
-          ),
+           const _InfoCard(
+             title: 'Notes',
+             child: Text(
+               'The background callback is auto-registered on app startup and executes with full Dart access, '
+               'even when the app is backgrounded or killed. Device presence events arrive via CompanionDeviceService '
+               'and trigger the callback in a headless Flutter engine with full plugin and storage access.',
+             ),
+           ),
         ],
       ),
     );
