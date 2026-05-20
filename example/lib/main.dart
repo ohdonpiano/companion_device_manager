@@ -51,7 +51,9 @@ class _InitializeCallbackWrapperState extends State<_InitializeCallbackWrapper> 
   @override
   void initState() {
     super.initState();
-    _ensureCallbackRegistered();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureCallbackRegistered();
+    });
   }
 
   Future<void> _ensureCallbackRegistered() async {
@@ -98,11 +100,14 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
    @override
    void initState() {
      super.initState();
-     _refreshAvailability();
-     _refreshAssociations();
-     _refreshLastEvent();
-     _checkCallbackRegistration();
-     _subscribeToBackgroundEvents();
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+       if (!mounted) return;
+       _subscribeToBackgroundEvents();
+       _refreshAvailability();
+       _refreshAssociations();
+       _refreshLastEvent();
+       _checkCallbackRegistration();
+     });
    }
 
    Future<void> _checkCallbackRegistration() async {

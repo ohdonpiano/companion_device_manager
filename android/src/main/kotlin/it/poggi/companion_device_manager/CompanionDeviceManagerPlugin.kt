@@ -23,6 +23,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import java.util.concurrent.Executors
 
 class CompanionDeviceManagerPlugin :
     FlutterPlugin,
@@ -35,6 +36,7 @@ class CompanionDeviceManagerPlugin :
     private lateinit var channel: MethodChannel
     private lateinit var eventsChannel: EventChannel
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private var pendingAssociationResult: Result? = null
     private var pendingAssociationRequest: AssociationRequest? = null
     private var pendingAssociationDisplayName: String? = null
@@ -58,7 +60,7 @@ class CompanionDeviceManagerPlugin :
         )
 
         if (CompanionDeviceStorage.getBackgroundCallbackHandle(applicationContext) != null) {
-            startObservingPresenceForCurrentAssociations()
+            schedulePresenceObservationStart("engine_attached")
         }
     }
 
@@ -83,6 +85,7 @@ class CompanionDeviceManagerPlugin :
         eventsChannel.setStreamHandler(null)
         CompanionDeviceEventStream.detachSink()
         applicationContext = null
+        backgroundExecutor.shutdown()
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -227,7 +230,7 @@ class CompanionDeviceManagerPlugin :
                 "selfManaged" to false,
                 "lastTimeConnectedMs" to null,
             )
-            startObservingPresenceForCurrentAssociations()
+            schedulePresenceObservationStart("association_completed")
             pendingResult.success(response)
             CompanionDeviceStorage.persistEvent(
                 applicationContext,
@@ -377,8 +380,25 @@ class CompanionDeviceManagerPlugin :
 
         Log.d(tag, "Registering background callback handle=$handle")
         CompanionDeviceStorage.storeBackgroundCallbackHandle(applicationContext, handle)
-        startObservingPresenceForCurrentAssociations()
+        schedulePresenceObservationStart("callback_registered")
         result.success(null)
+    }
+
+    private fun schedulePresenceObservationStart(reason: String) {
+        val context = applicationContext
+        if (context == null) {
+            Log.w(tag, "Skipping presence observation start for reason=$reason because plugin context is unavailable")
+            return
+        }
+
+        backgroundExecutor.execute {
+            runCatching {
+                Log.d(tag, "Starting presence observation asynchronously for reason=$reason")
+                startObservingPresenceForCurrentAssociations()
+            }.onFailure { error ->
+                Log.e(tag, "Failed to start presence observation for reason=$reason", error)
+            }
+        }
     }
 
     private fun clearBackgroundCallback(result: Result) {
