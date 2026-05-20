@@ -1,9 +1,16 @@
-## Unreleased
+## 0.2.0
 
 - Added `CompanionDeviceManager.backgroundEvents` for reactive `device_appeared`/`device_disappeared` updates.
 - Added Android `EventChannel` support (`companion_device_manager/events`) and native event emission from `CompanionDeviceBackgroundService`.
-- Updated the example app to reactively refresh UI and auto-log new background events from the stream.
-- Updated README and `docs/` to officially document the new reactive API.
+- Fixed background stream attachment/detachment race condition: event sink now properly scoped per Flutter engine to avoid conflicts between foreground and headless engines.
+- Fixed `SharedPreferences` race condition on event persistence by switching from async `apply()` to synchronous `commit()` for reliable "Reload last event" behavior.
+- Fixed `ServicesBinding` initialization error in headless background callback by ensuring `WidgetsFlutterBinding.ensureInitialized()` and `ui.DartPluginRegistrant.ensureInitialized()` are called early in flow.
+- Removed duplicate plugin registration in headless Flutter engine to eliminate duplicate registration warnings.
+- Updated the example app to:
+  - reactively refresh UI with background events from the stream
+  - auto-log new background events
+  - display formatted receive timestamp (date/time + relative "time ago" update)
+- Updated README with background callback initialization requirements and example app usage.
 
 ## 0.1.0
 

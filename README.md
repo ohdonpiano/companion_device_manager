@@ -42,7 +42,7 @@ Or, for a published version:
 
 ```yaml
 dependencies:
-  companion_device_manager: ^0.1.0
+  companion_device_manager: ^0.2.0
 ```
 
 ## Basic usage
@@ -78,6 +78,8 @@ Future<void> setup() async {
 }
 
 void watchBackgroundEvents() {
+  // Note: this stream only emits events while the app is running in foreground.
+  // To react to events when the app is backgrounded or killed, use the background callback.
   manager.backgroundEvents.listen((event) {
     print('Companion event: ${event.type} at ${event.timestamp}');
   });
@@ -90,6 +92,27 @@ The callback passed to `registerBackgroundCallback` must be:
 
 - a top-level or static function
 - annotated with `@pragma('vm:entry-point')`
+
+Additionally, when the callback is invoked in a headless Flutter engine (after app wake from device presence):
+
+- call `WidgetsFlutterBinding.ensureInitialized()` early in the callback body
+- call `ui.DartPluginRegistrant.ensureInitialized()` to ensure all plugins (including this one) are ready for method channel calls
+
+Example:
+
+```dart
+@pragma('vm:entry-point')
+Future<void> companionDeviceWakeCallback() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  import 'dart:ui' as ui;
+  ui.DartPluginRegistrant.ensureInitialized();
+  
+  // Now you can safely call plugin methods
+  final manager = CompanionDeviceManager();
+  final lastEvent = await manager.getLastBackgroundEvent();
+  // ...
+}
+```
 
 This is required because Android may need to start a headless Flutter engine when the companion device service wakes the app.
 
@@ -119,6 +142,13 @@ Depending on the device type you are pairing with, you may also need Bluetooth-r
 Use `CompanionDeviceFilter.bluetoothLe(...)` for BLE peripherals and `CompanionDeviceFilter.bluetooth(...)` for classic Bluetooth devices.
 
 The first version of the plugin focuses on Bluetooth address-based filters to keep the API simple and predictable.
+
+### Event delivery
+
+- **When app is running in foreground**: subscribe to `manager.backgroundEvents` stream for real-time `device_appeared` and `device_disappeared` events.
+- **When app is backgrounded or killed**: the `CompanionDeviceService` broadcasts events to the background callback (if registered).
+- **Persisted events**: the last event payload is always stored on device and can be retrieved via `getLastBackgroundEvent()`.
+- **Stream and persistence are synchronized**: both paths use the same native event source, so the UI stays in sync.
 
 ## Publishing checklist
 
