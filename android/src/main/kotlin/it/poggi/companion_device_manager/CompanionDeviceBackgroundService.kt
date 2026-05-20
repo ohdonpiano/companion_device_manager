@@ -89,11 +89,6 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         val engine = FlutterEngine(context)
         activeEngine = engine
 
-        runCatching {
-            Class.forName("io.flutter.plugins.GeneratedPluginRegistrant")
-                .getDeclaredMethod("registerWith", FlutterEngine::class.java)
-                .invoke(null, engine)
-        }
 
         val dartCallback = DartExecutor.DartCallback(
             context.assets,

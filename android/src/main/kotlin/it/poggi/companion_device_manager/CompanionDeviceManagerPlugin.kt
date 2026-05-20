@@ -35,6 +35,7 @@ class CompanionDeviceManagerPlugin :
     private var activityBinding: ActivityPluginBinding? = null
     private lateinit var channel: MethodChannel
     private lateinit var eventsChannel: EventChannel
+    private val eventStreamOwner = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private var pendingAssociationResult: Result? = null
@@ -50,11 +51,11 @@ class CompanionDeviceManagerPlugin :
         eventsChannel.setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                    CompanionDeviceEventStream.attachSink(events)
+                    CompanionDeviceEventStream.attachSink(eventStreamOwner, events)
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    CompanionDeviceEventStream.detachSink()
+                    CompanionDeviceEventStream.detachSink(eventStreamOwner)
                 }
             },
         )
@@ -83,7 +84,7 @@ class CompanionDeviceManagerPlugin :
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
         eventsChannel.setStreamHandler(null)
-        CompanionDeviceEventStream.detachSink()
+        CompanionDeviceEventStream.detachSink(eventStreamOwner)
         applicationContext = null
         backgroundExecutor.shutdown()
     }
@@ -535,7 +536,7 @@ internal object CompanionDeviceStorage {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putLong(KEY_BACKGROUND_CALLBACK_HANDLE, handle)
-            .apply()
+            .commit()
     }
 
     fun getBackgroundCallbackHandle(context: Context?): Long? {
@@ -550,7 +551,7 @@ internal object CompanionDeviceStorage {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_BACKGROUND_CALLBACK_HANDLE)
-            .apply()
+            .commit()
     }
 
     fun persistEvent(context: Context?, payload: Map<String, Any?>) {
@@ -559,7 +560,7 @@ internal object CompanionDeviceStorage {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LAST_EVENT_JSON, json)
-            .apply()
+            .commit()
     }
 
     fun getLastEventMap(context: Context?): Map<String, Any?>? {

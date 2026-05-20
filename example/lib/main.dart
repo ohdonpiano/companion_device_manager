@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:ui' as ui;
 
 import 'package:companion_device_manager/companion_device_manager.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,9 @@ void main() {
 
 @pragma('vm:entry-point')
 Future<void> companionDeviceWakeCallback() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  ui.DartPluginRegistrant.ensureInitialized();
+
   final timestamp = DateTime.now();
   final isoTime = timestamp.toIso8601String();
   debugPrint('[CDM Background Callback] Invoked at $isoTime (${timestamp.millisecondsSinceEpoch}ms)');
@@ -88,7 +92,9 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
   final TextEditingController _addressController =
       TextEditingController(text: 'A7:09:65:57:B7:D6');
   StreamSubscription<CompanionDeviceEvent>? _eventSubscription;
+  Timer? _timeAgoTicker;
   String? _lastEventSignature;
+  DateTime? _lastEventTimestamp;
 
   bool _available = false;
   bool _callbackRegistered = false;
@@ -108,6 +114,15 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
        _refreshLastEvent();
        _checkCallbackRegistration();
      });
+
+      _timeAgoTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (!mounted || _lastEventTimestamp == null) {
+          return;
+        }
+        setState(() {
+          // Trigger rebuild so the "time ago" subtitle stays current.
+        });
+      });
    }
 
    Future<void> _checkCallbackRegistration() async {
@@ -123,6 +138,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
   @override
   void dispose() {
     _eventSubscription?.cancel();
+    _timeAgoTicker?.cancel();
     _addressController.dispose();
     super.dispose();
   }
@@ -226,6 +242,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
 
     setState(() {
       _lastEventJson = prettyJson;
+      _lastEventTimestamp = event?.timestamp;
       if (updateStatusOnChange && changed && event != null) {
         _status = 'New background event received: ${event.type}';
       }
@@ -243,6 +260,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       if (!mounted) return;
       setState(() {
         _lastEventJson = event == null ? null : const JsonEncoder.withIndent('  ').convert(event.toMap());
+        _lastEventTimestamp = event?.timestamp;
         _status = event == null ? 'No background event captured yet.' : 'Last background event logged to console.';
       });
     } on PlatformException catch (error) {
@@ -308,6 +326,41 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String? _lastEventSubtitle() {
+    final timestamp = _lastEventTimestamp;
+    if (timestamp == null) {
+      return null;
+    }
+
+    final local = timestamp.toLocal();
+    final formatted =
+        '${_twoDigits(local.day)}/${_twoDigits(local.month)}/${local.year} '
+        '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}:${_twoDigits(local.second)}';
+    return 'Ricevuto: $formatted (${_formatTimeAgo(local, DateTime.now())})';
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+  String _formatTimeAgo(DateTime timestamp, DateTime now) {
+    final difference = now.difference(timestamp);
+    if (difference.isNegative || difference.inSeconds < 5) {
+      return 'adesso';
+    }
+    if (difference.inMinutes < 1) {
+      return '${difference.inSeconds}s fa';
+    }
+    if (difference.inHours < 1) {
+      final minutes = difference.inMinutes;
+      return minutes == 1 ? '1 min fa' : '$minutes min fa';
+    }
+    if (difference.inDays < 1) {
+      final hours = difference.inHours;
+      return hours == 1 ? '1 ora fa' : '$hours ore fa';
+    }
+    final days = difference.inDays;
+    return days == 1 ? '1 giorno fa' : '$days giorni fa';
   }
 
   @override
@@ -416,6 +469,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
           const SizedBox(height: 12),
           _InfoCard(
             title: 'Last background event',
+            subtitle: _lastEventSubtitle(),
             child: SelectableText(
               _lastEventJson ?? 'No background event captured yet.',
             ),
@@ -436,9 +490,10 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
 }
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.child});
+  const _InfoCard({required this.title, required this.child, this.subtitle});
 
   final String title;
+  final String? subtitle;
   final Widget child;
 
   @override
@@ -450,6 +505,10 @@ class _InfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+            ],
             const SizedBox(height: 12),
             child,
           ],
