@@ -1,6 +1,7 @@
 package it.poggi.companion_device_manager
 
 import android.app.Activity
+import android.bluetooth.le.ScanFilter
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
@@ -10,6 +11,7 @@ import android.os.Looper
 import android.util.Log
 import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
+import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -110,10 +112,12 @@ class CompanionDeviceManagerPlugin :
 
     private fun readAssociations(): List<Map<String, Any?>> {
         if (!isCompanionDeviceManagerAvailable()) {
+            Log.w(tag, "CDM not available on this device")
             return emptyList()
         }
 
         return getManager().associations.map { address ->
+            Log.d(tag, "Found association: $address")
             mapOf<String, Any?>(
                 "associationId" to null,
                 "macAddress" to address,
@@ -126,6 +130,7 @@ class CompanionDeviceManagerPlugin :
     }
 
     private fun startAssociation(call: MethodCall, result: Result) {
+        Log.d(tag, "startAssociation called")
         if (!isCompanionDeviceManagerAvailable()) {
             result.error("cdm_unavailable", "Companion Device Manager is only available on Android 8.0 (API 26) or newer.", null)
             return
@@ -155,6 +160,7 @@ class CompanionDeviceManagerPlugin :
                 associationRequest.request,
                 object : CompanionDeviceManager.Callback() {
                     override fun onDeviceFound(chooserLauncher: IntentSender) {
+                        Log.d(tag, "CDM chooser intent received from system")
                         try {
                             currentActivity.startIntentSenderForResult(
                                 chooserLauncher,
@@ -174,6 +180,7 @@ class CompanionDeviceManagerPlugin :
                     }
 
                     override fun onFailure(error: CharSequence?) {
+                        Log.e(tag, "CDM associate callback failure: ${error ?: "unknown"}")
                         finishPendingAssociationError(
                             "association_failed",
                             error?.toString() ?: "The CDM association request failed.",
@@ -193,11 +200,17 @@ class CompanionDeviceManagerPlugin :
             return false
         }
 
+        Log.d(tag, "handleActivityResult for association requestCode=$requestCode resultCode=$resultCode")
+
         val pendingResult = pendingAssociationResult ?: return true
         val manager = applicationContext?.getSystemService(CompanionDeviceManager::class.java)
 
         if (resultCode == Activity.RESULT_OK) {
             val associations = readAssociations()
+            Log.d(tag, "Association successful, ${associations.size} total associations now known to system")
+            associations.forEach { assoc ->
+                Log.d(tag, "  - Association: mac=${assoc["macAddress"]}")
+            }
             val association = associations.firstOrNull { it["macAddress"] == pendingAssociationMacAddress }
                 ?: associations.firstOrNull()
             val response = association ?: mapOf<String, Any?>(
@@ -211,6 +224,17 @@ class CompanionDeviceManagerPlugin :
             pendingResult.success(response)
             CompanionDeviceStorage.persistEvent(
                 applicationContext,
+                mapOf(
+                    "type" to "association_created",
+                    "timestampMs" to System.currentTimeMillis(),
+                    "association" to response,
+                    "rawPayload" to mapOf<String, Any?>(
+                        "resultCode" to resultCode,
+                        "requestCode" to requestCode,
+                    ),
+                ),
+            )
+            CompanionDeviceEventStream.emit(
                 mapOf(
                     "type" to "association_created",
                     "timestampMs" to System.currentTimeMillis(),
@@ -244,15 +268,18 @@ class CompanionDeviceManagerPlugin :
 
     private fun buildAssociationRequest(arguments: Map<*, *>?): AssociationRequestWithMetadata {
         val displayName = arguments?.get("displayName") as? String
+        Log.d(tag, "buildAssociationRequest displayName=$displayName")
         if (displayName.isNullOrBlank()) {
             throw IllegalArgumentException("displayName is required.")
         }
 
         val builder = AssociationRequest.Builder()
             .setDisplayName(displayName)
+        Log.d(tag, "Set display name: $displayName")
 
         val selfManaged = arguments?.get("selfManaged") as? Boolean ?: false
         if (selfManaged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Log.d(tag, "selfManaged=true, setting on builder")
             builder.setSelfManaged(true)
         }
 
@@ -266,12 +293,15 @@ class CompanionDeviceManagerPlugin :
 
         var firstBluetoothAddress: String? = null
         val filters = arguments?.get("filters") as? List<*>
+        Log.d(tag, "Processing ${filters?.size ?: 0} device filters")
         filters.orEmpty().filterIsInstance<Map<*, *>>().forEach { filterMap ->
             val type = filterMap["type"] as? String ?: throw IllegalArgumentException("Each filter must define a type.")
+            Log.d(tag, "Processing filter type=$type")
             when (type) {
-                "bluetooth", "bluetoothLe" -> {
+                "bluetooth" -> {
                     val address = filterMap["address"] as? String
                         ?: throw IllegalArgumentException("Bluetooth filters require an address.")
+                    Log.d(tag, "Adding classic Bluetooth filter for address=$address")
                     if (firstBluetoothAddress == null) {
                         firstBluetoothAddress = address
                     }
@@ -281,9 +311,28 @@ class CompanionDeviceManagerPlugin :
                     builder.addDeviceFilter(filter)
                 }
 
+                "bluetoothLe" -> {
+                    val address = filterMap["address"] as? String
+                        ?: throw IllegalArgumentException("Bluetooth LE filters require an address.")
+                    Log.d(tag, "Adding BLE filter for address=$address")
+                    if (firstBluetoothAddress == null) {
+                        firstBluetoothAddress = address
+                    }
+                    val scanFilter = ScanFilter.Builder()
+                        .setDeviceAddress(address)
+                        .build()
+                    Log.d(tag, "Created ScanFilter with address=$address")
+                    val filter = BluetoothLeDeviceFilter.Builder()
+                        .setScanFilter(scanFilter)
+                        .build()
+                    Log.d(tag, "Created BluetoothLeDeviceFilter, adding to request")
+                    builder.addDeviceFilter(filter)
+                }
+
                 else -> throw IllegalArgumentException("Unsupported device filter type: $type")
             }
         }
+        Log.d(tag, "Final association request: displayName=$displayName filters=${filters?.size ?: 0} singleDevice=$singleDevice selfManaged=$selfManaged")
 
         return AssociationRequestWithMetadata(
             request = builder.build(),

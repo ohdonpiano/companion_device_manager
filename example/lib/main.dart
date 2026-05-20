@@ -246,7 +246,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
         CompanionDeviceAssociationRequest(
           displayName: 'Companion Device Manager Example',
           filters: <CompanionDeviceFilter>[
-            CompanionDeviceFilter.bluetooth(address: address),
+            CompanionDeviceFilter.bluetoothLe(address: address),
           ],
           singleDevice: true,
         ),
@@ -360,7 +360,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
                   controller: _addressController,
                   decoration: const InputDecoration(
                     labelText: 'Bluetooth MAC address',
-                    helperText: 'Use a real companion device address when testing.',
+                    helperText: 'Use the BLE device MAC address when testing.',
                     border: OutlineInputBorder(),
                   ),
                 ),

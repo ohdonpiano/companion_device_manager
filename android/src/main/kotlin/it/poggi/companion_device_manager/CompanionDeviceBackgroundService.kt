@@ -5,6 +5,7 @@ import android.companion.CompanionDeviceService
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.embedding.engine.loader.FlutterLoader
@@ -12,13 +13,21 @@ import io.flutter.view.FlutterCallbackInformation
 import io.flutter.FlutterInjector
 
 class CompanionDeviceBackgroundService : CompanionDeviceService() {
+    private val tag = "CDMBackgroundService"
     private var activeEngine: FlutterEngine? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(tag, "Service onCreate called - service is alive")
+    }
+
     override fun onDeviceAppeared(associationInfo: AssociationInfo) {
+        Log.d(tag, "onDeviceAppeared id=${associationInfo.id} mac=${associationInfo.deviceMacAddress}")
         handleDeviceEvent("device_appeared", associationInfo)
     }
 
     override fun onDeviceDisappeared(associationInfo: AssociationInfo) {
+        Log.d(tag, "onDeviceDisappeared id=${associationInfo.id} mac=${associationInfo.deviceMacAddress}")
         handleDeviceEvent("device_disappeared", associationInfo)
     }
 
@@ -42,8 +51,14 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
 
         CompanionDeviceStorage.persistEvent(context, payload)
         CompanionDeviceEventStream.emit(payload)
+        Log.d(tag, "Persisted and emitted event type=$type")
 
-        val callbackHandle = CompanionDeviceStorage.getBackgroundCallbackHandle(context) ?: return
+        val callbackHandle = CompanionDeviceStorage.getBackgroundCallbackHandle(context)
+        if (callbackHandle == null) {
+            Log.w(tag, "No registered background callback handle; event will not execute Dart callback")
+            return
+        }
+        Log.d(tag, "Found registered callback handle=$callbackHandle")
         runOnMainThread {
             startBackgroundCallbackEngine(context, callbackHandle)
         }
@@ -62,7 +77,10 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         activeEngine = null
 
         val callbackInfo = FlutterCallbackInformation.lookupCallbackInformation(callbackHandle)
-            ?: return
+            ?: run {
+                Log.e(tag, "Unable to resolve Flutter callback info for handle=$callbackHandle")
+                return
+            }
 
         val flutterLoader: FlutterLoader = FlutterInjector.instance().flutterLoader()
         flutterLoader.startInitialization(context)
@@ -83,11 +101,13 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
             callbackInfo,
         )
         engine.dartExecutor.executeDartCallback(dartCallback)
+        Log.d(tag, "Executed Dart background callback for event")
     }
 
     override fun onDestroy() {
         activeEngine?.destroy()
         activeEngine = null
+        Log.d(tag, "Service onDestroy called")
         super.onDestroy()
     }
 }

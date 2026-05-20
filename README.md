@@ -69,7 +69,7 @@ Future<void> setup() async {
 	CompanionDeviceAssociationRequest(
 	  displayName: 'My Companion Device',
 	  filters: <CompanionDeviceFilter>[
-		CompanionDeviceFilter.bluetooth(address: '00:11:22:33:44:55'),
+    CompanionDeviceFilter.bluetoothLe(address: '00:11:22:33:44:55'),
 	  ],
 	),
   );
@@ -115,6 +115,8 @@ flutter run
 The plugin targets Android devices that support Companion Device Manager.
 
 Depending on the device type you are pairing with, you may also need Bluetooth-related runtime permissions in the host app.
+
+Use `CompanionDeviceFilter.bluetoothLe(...)` for BLE peripherals and `CompanionDeviceFilter.bluetooth(...)` for classic Bluetooth devices.
 
 The first version of the plugin focuses on Bluetooth address-based filters to keep the API simple and predictable.
 
