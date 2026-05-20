@@ -61,6 +61,15 @@ The callback must be:
 - top-level or static
 - marked with `@pragma('vm:entry-point')`
 
+Breaking change in `0.2.2`:
+
+- old callback type: `Future<void> Function()`
+- new callback type: `Future<void> Function(CompanionDeviceEvent event)`
+
+This gives direct access to event type and MAC address in the callback body.
+
+Internally, callback execution now goes through a dispatcher entrypoint that initializes the headless Flutter engine safely before invoking your callback.
+
 ### `Future<void> clearBackgroundCallback()`
 
 Removes the persisted background callback registration.
@@ -127,12 +136,26 @@ Fields:
 - `association`
 - `rawPayload`
 
+`type` is a `CompanionDeviceEventType` enum.
+
+`CompanionDeviceEventType` values:
+
+- `deviceAppeared`
+- `deviceDisappeared`
+- `associationCreated`
+- `unknown`
+
+Use `event.type.wireValue` for wire string values (`device_appeared`, `device_disappeared`, ...).
+
 ## Example callback
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> companionDeviceWakeCallback() async {
-  debugPrint('Companion device service woke the app');
+Future<void> companionDeviceWakeCallback(CompanionDeviceEvent event) async {
+  debugPrint(
+    'Companion device service woke the app. '
+    'type=${event.type.wireValue} mac=${event.association?.macAddress}',
+  );
 }
 ```
 

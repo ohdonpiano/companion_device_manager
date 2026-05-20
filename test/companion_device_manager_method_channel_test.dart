@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:companion_device_manager/companion_device_manager_method_channel.dart';
 import 'package:companion_device_manager/companion_device_manager_types.dart';
 
+@pragma('vm:entry-point')
+Future<void> _testBackgroundCallback(CompanionDeviceEvent event) async {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -98,6 +101,18 @@ void main() {
 
   test('getLastBackgroundEvent', () async {
     final event = await platform.getLastBackgroundEvent();
-    expect(event?.type, 'device_appeared');
+    expect(event?.type, CompanionDeviceEventType.deviceAppeared);
   });
+
+  test(
+    'registerBackgroundCallback sends both callback and dispatcher handles',
+    () async {
+      await platform.registerBackgroundCallback(_testBackgroundCallback);
+
+      expect(lastMethodCall?.method, 'registerBackgroundCallback');
+      final arguments = lastMethodCall?.arguments as Map<Object?, Object?>;
+      expect(arguments['callbackHandle'], isA<int>());
+      expect(arguments['dispatcherHandle'], isA<int>());
+    },
+  );
 }

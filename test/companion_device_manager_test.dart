@@ -68,7 +68,10 @@ class MockCompanionDeviceManagerPlatform
   @override
   Stream<CompanionDeviceEvent> get backgroundEvents =>
       Stream<CompanionDeviceEvent>.value(
-        const CompanionDeviceEvent(type: 'device_appeared', timestampMs: 1),
+        const CompanionDeviceEvent(
+          type: CompanionDeviceEventType.deviceAppeared,
+          timestampMs: 1,
+        ),
       );
 }
 
@@ -158,6 +161,6 @@ void main() {
 
     final event = await companionDeviceManagerPlugin.backgroundEvents.first;
 
-    expect(event.type, 'device_appeared');
+    expect(event.type, CompanionDeviceEventType.deviceAppeared);
   });
 }

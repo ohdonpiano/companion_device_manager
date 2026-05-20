@@ -56,7 +56,7 @@ Or, for a published version:
 
 ```yaml
 dependencies:
-  companion_device_manager: ^0.2.1
+  companion_device_manager: ^0.2.2
 ```
 
 ## Basic usage
@@ -67,8 +67,11 @@ import 'package:companion_device_manager/companion_device_manager.dart';
 final manager = CompanionDeviceManager();
 
 @pragma('vm:entry-point')
-Future<void> companionDeviceWakeCallback() async {
-  print('Companion device wake callback invoked');
+Future<void> companionDeviceWakeCallback(CompanionDeviceEvent event) async {
+  print(
+    'Companion device wake callback invoked. '
+    'type=${event.type} mac=${event.association?.macAddress}',
+  );
 }
 
 Future<void> setup() async {
@@ -88,10 +91,29 @@ void watchBackgroundEvents() {
   // Note: this stream only emits events while the app is running in foreground.
   // To react to events when the app is backgrounded or killed, use the background callback.
   manager.backgroundEvents.listen((event) {
-    print('Companion event: ${event.type} at ${event.timestamp}');
+    print('Companion event: ${event.type.wireValue} at ${event.timestamp}');
   });
 }
 ```
+
+## Breaking change in 0.2.2 (background callback)
+
+`registerBackgroundCallback` now expects an **informative callback**:
+
+- old signature: `Future<void> Function()`
+- new signature: `Future<void> Function(CompanionDeviceEvent event)`
+
+This gives the app immediate access to:
+
+- event type as enum (`CompanionDeviceEventType`)
+- associated MAC address via `event.association?.macAddress`
+- full native payload for advanced logic (`event.rawPayload`)
+
+### Event type enum
+
+`CompanionDeviceEvent.type` is now `CompanionDeviceEventType` instead of raw `String`.
+
+Use `event.type.wireValue` when you need the serialized string (`device_appeared`, `device_disappeared`, ...).
 
 ## MAC address format (for new convenience APIs)
 
@@ -115,10 +137,9 @@ The callback passed to `registerBackgroundCallback` must be:
 - a top-level or static function
 - annotated with `@pragma('vm:entry-point')`
 
-Additionally, when the callback is invoked in a headless Flutter engine (after app wake from device presence):
+From `0.2.2`, the plugin initializes the headless Flutter binding before invoking your callback and passes the event payload directly.
 
-- call `WidgetsFlutterBinding.ensureInitialized()` early in the callback body
-- call `ui.DartPluginRegistrant.ensureInitialized()` to ensure all plugins (including this one) are ready for method channel calls
+You can still call `WidgetsFlutterBinding.ensureInitialized()` and `ui.DartPluginRegistrant.ensureInitialized()` inside your callback (safe and idempotent), but it is no longer mandatory.
 
 Example:
 
@@ -127,14 +148,13 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 
 @pragma('vm:entry-point')
-Future<void> companionDeviceWakeCallback() async {
+Future<void> companionDeviceWakeCallback(CompanionDeviceEvent event) async {
   WidgetsFlutterBinding.ensureInitialized();
   ui.DartPluginRegistrant.ensureInitialized();
-  
-  // Now you can safely call plugin methods
-  final manager = CompanionDeviceManager();
-  final lastEvent = await manager.getLastBackgroundEvent();
-  // ...
+
+  final type = event.type;
+  final macAddress = event.association?.macAddress;
+  debugPrint('Background event: ${type.wireValue} for $macAddress');
 }
 ```
 

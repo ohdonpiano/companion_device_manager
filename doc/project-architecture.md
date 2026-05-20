@@ -9,6 +9,8 @@ This plugin provides a simple Flutter-facing API for Android's [`CompanionDevice
 3. Register a Dart callback that is invoked when the companion device service wakes the app.
 4. Read the last background event after the app has been started again.
 
+From `0.2.2`, the background callback is informative: Dart receives a typed `CompanionDeviceEvent` payload (including enum event type and association MAC address) instead of a no-argument callback.
+
 The plugin is Android-only. On other platforms, the package is intentionally unsupported.
 
 ### Android compatibility at a glance
@@ -85,8 +87,9 @@ For the wake-on-device event, the plugin uses an Android companion-device servic
 - the Android service is declared in the plugin manifest
 - the service stores the latest event payload in shared preferences
 - the service reads the registered Dart callback handle
-- the service starts a headless Flutter engine
-- the engine executes the registered callback in the app process
+- the service reads a dispatcher callback handle
+- the service starts a headless Flutter engine and executes the dispatcher
+- the dispatcher forwards the typed event payload to the registered app callback
 
 This means the host app only has to provide a top-level or static Dart callback.
 

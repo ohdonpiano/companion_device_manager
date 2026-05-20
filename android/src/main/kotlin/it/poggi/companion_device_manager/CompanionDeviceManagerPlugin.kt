@@ -374,13 +374,16 @@ class CompanionDeviceManagerPlugin :
 
     private fun registerBackgroundCallback(call: MethodCall, result: Result) {
         val handle = call.argument<Number>("callbackHandle")?.toLong()
-        if (handle == null || handle == 0L) {
-            result.error("invalid_arguments", "callbackHandle is required.", null)
+        val dispatcherHandle = call.argument<Number>("dispatcherHandle")?.toLong()
+
+        if (handle == null || handle == 0L || dispatcherHandle == null || dispatcherHandle == 0L) {
+            result.error("invalid_arguments", "callbackHandle and dispatcherHandle are required.", null)
             return
         }
 
-        Log.d(tag, "Registering background callback handle=$handle")
+        Log.d(tag, "Registering background callback handle=$handle dispatcherHandle=$dispatcherHandle")
         CompanionDeviceStorage.storeBackgroundCallbackHandle(applicationContext, handle)
+        CompanionDeviceStorage.storeBackgroundDispatcherHandle(applicationContext, dispatcherHandle)
         schedulePresenceObservationStart("callback_registered")
         result.success(null)
     }
@@ -406,6 +409,7 @@ class CompanionDeviceManagerPlugin :
         Log.d(tag, "Clearing background callback")
         stopObservingPresenceForCurrentAssociations()
         CompanionDeviceStorage.clearBackgroundCallbackHandle(applicationContext)
+        CompanionDeviceStorage.clearBackgroundDispatcherHandle(applicationContext)
         result.success(null)
     }
 
@@ -529,6 +533,7 @@ class CompanionDeviceManagerPlugin :
 internal object CompanionDeviceStorage {
     private const val PREFS_NAME = "companion_device_manager"
     private const val KEY_BACKGROUND_CALLBACK_HANDLE = "background_callback_handle"
+    private const val KEY_BACKGROUND_DISPATCHER_HANDLE = "background_dispatcher_handle"
     private const val KEY_LAST_EVENT_JSON = "last_event_json"
 
     fun storeBackgroundCallbackHandle(context: Context?, handle: Long) {
@@ -551,6 +556,29 @@ internal object CompanionDeviceStorage {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_BACKGROUND_CALLBACK_HANDLE)
+            .commit()
+    }
+
+    fun storeBackgroundDispatcherHandle(context: Context?, handle: Long) {
+        context ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_BACKGROUND_DISPATCHER_HANDLE, handle)
+            .commit()
+    }
+
+    fun getBackgroundDispatcherHandle(context: Context?): Long? {
+        context ?: return null
+        val handle = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getLong(KEY_BACKGROUND_DISPATCHER_HANDLE, 0L)
+        return handle.takeIf { it != 0L }
+    }
+
+    fun clearBackgroundDispatcherHandle(context: Context?) {
+        context ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_BACKGROUND_DISPATCHER_HANDLE)
             .commit()
     }
 

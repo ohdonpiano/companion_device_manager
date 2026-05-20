@@ -1,3 +1,11 @@
+## 0.2.2
+
+- **Breaking change**: `registerBackgroundCallback` now requires an informative callback signature: `Future<void> Function(CompanionDeviceEvent event)`.
+- **Breaking change**: `CompanionDeviceEvent.type` is now a typed enum (`CompanionDeviceEventType`) instead of `String`.
+- Added dispatcher-based background delivery bridge so headless callback execution receives the exact event payload from Android safely.
+- Background callback payload now carries event type + association data (including MAC address) for direct business-logic handling.
+- Updated example app and docs for enum-based event handling and the new callback signature.
+
 ## 0.2.1
 
 - Added `CompanionDeviceManager.associateByMacAddress(String macAddress)` convenience API for MAC-only association requests.

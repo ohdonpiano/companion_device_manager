@@ -12,19 +12,25 @@ void main() {
 }
 
 @pragma('vm:entry-point')
-Future<void> companionDeviceWakeCallback() async {
+Future<void> companionDeviceWakeCallback(CompanionDeviceEvent event) async {
   WidgetsFlutterBinding.ensureInitialized();
   ui.DartPluginRegistrant.ensureInitialized();
 
   final timestamp = DateTime.now();
   final isoTime = timestamp.toIso8601String();
-  debugPrint('[CDM Background Callback] Invoked at $isoTime (${timestamp.millisecondsSinceEpoch}ms)');
+  debugPrint(
+    '[CDM Background Callback] Invoked at $isoTime (${timestamp.millisecondsSinceEpoch}ms) '
+    'type=${event.type.wireValue} mac=${event.association?.macAddress}',
+  );
 
   // Verify this is truly executing in Dart by logging the event
   final manager = CompanionDeviceManager();
   final lastEvent = await manager.getLastBackgroundEvent();
   if (lastEvent != null) {
-    debugPrint('[CDM Background Callback] Last background event: ${lastEvent.type} at ${lastEvent.timestamp}');
+    debugPrint(
+      '[CDM Background Callback] Last background event: ${lastEvent.type.wireValue} '
+      'mac=${lastEvent.association?.macAddress} at ${lastEvent.timestamp}',
+    );
   }
 }
 
@@ -36,7 +42,9 @@ class CompanionDeviceManagerExampleApp extends StatelessWidget {
     return MaterialApp(
       title: 'Companion Device Manager Example',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-      home: const _InitializeCallbackWrapper(child: CompanionDeviceManagerHomePage()),
+      home: const _InitializeCallbackWrapper(
+        child: CompanionDeviceManagerHomePage(),
+      ),
     );
   }
 }
@@ -51,7 +59,8 @@ class _InitializeCallbackWrapper extends StatefulWidget {
       _InitializeCallbackWrapperState();
 }
 
-class _InitializeCallbackWrapperState extends State<_InitializeCallbackWrapper> {
+class _InitializeCallbackWrapperState
+    extends State<_InitializeCallbackWrapper> {
   @override
   void initState() {
     super.initState();
@@ -87,10 +96,12 @@ class CompanionDeviceManagerHomePage extends StatefulWidget {
       _CompanionDeviceManagerHomePageState();
 }
 
-class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerHomePage> {
+class _CompanionDeviceManagerHomePageState
+    extends State<CompanionDeviceManagerHomePage> {
   final CompanionDeviceManager _manager = CompanionDeviceManager();
-  final TextEditingController _addressController =
-      TextEditingController(text: 'A7:09:65:57:B7:D6');
+  final TextEditingController _addressController = TextEditingController(
+    text: 'A7:09:65:57:B7:D6',
+  );
   StreamSubscription<CompanionDeviceEvent>? _eventSubscription;
   Timer? _timeAgoTicker;
   String? _lastEventSignature;
@@ -101,39 +112,40 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
   bool _busy = false;
   String _status = 'Ready';
   String? _lastEventJson;
-  List<CompanionDeviceAssociation> _associations = <CompanionDeviceAssociation>[];
+  List<CompanionDeviceAssociation> _associations =
+      <CompanionDeviceAssociation>[];
 
-   @override
-   void initState() {
-     super.initState();
-     WidgetsBinding.instance.addPostFrameCallback((_) {
-       if (!mounted) return;
-       _subscribeToBackgroundEvents();
-       _refreshAvailability();
-       _refreshAssociations();
-       _refreshLastEvent();
-       _checkCallbackRegistration();
-     });
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _subscribeToBackgroundEvents();
+      _refreshAvailability();
+      _refreshAssociations();
+      _refreshLastEvent();
+      _checkCallbackRegistration();
+    });
 
-      _timeAgoTicker = Timer.periodic(const Duration(seconds: 30), (_) {
-        if (!mounted || _lastEventTimestamp == null) {
-          return;
-        }
-        setState(() {
-          // Trigger rebuild so the "time ago" subtitle stays current.
-        });
+    _timeAgoTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted || _lastEventTimestamp == null) {
+        return;
+      }
+      setState(() {
+        // Trigger rebuild so the "time ago" subtitle stays current.
       });
-   }
+    });
+  }
 
-   Future<void> _checkCallbackRegistration() async {
-     try {
-       final lastEvent = await _manager.getLastBackgroundEvent();
-       if (!mounted) return;
-       setState(() => _callbackRegistered = lastEvent != null);
-     } catch (_) {
-       // If we can't get last event, assume callback might not be registered
-     }
-   }
+  Future<void> _checkCallbackRegistration() async {
+    try {
+      final lastEvent = await _manager.getLastBackgroundEvent();
+      if (!mounted) return;
+      setState(() => _callbackRegistered = lastEvent != null);
+    } catch (_) {
+      // If we can't get last event, assume callback might not be registered
+    }
+  }
 
   @override
   void dispose() {
@@ -208,7 +220,9 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       );
     } on PlatformException catch (error) {
       if (!mounted) return;
-      setState(() => _status = 'Unable to load the last event: ${error.message}');
+      setState(
+        () => _status = 'Unable to load the last event: ${error.message}',
+      );
     }
   }
 
@@ -234,7 +248,9 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       _lastEventSignature = nextSignature;
       if (logIfChanged) {
         developer.log(
-          event == null ? '[CDM] Last background event cleared (null).' : '$logPrefix $prettyJson',
+          event == null
+              ? '[CDM] Last background event cleared (null).'
+              : '$logPrefix $prettyJson',
           name: 'CDMExample',
         );
       }
@@ -244,7 +260,7 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       _lastEventJson = prettyJson;
       _lastEventTimestamp = event?.timestamp;
       if (updateStatusOnChange && changed && event != null) {
-        _status = 'New background event received: ${event.type}';
+        _status = 'New background event received: ${event.type.wireValue}';
       }
     });
   }
@@ -259,17 +275,21 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       developer.log(message, name: 'CDMExample');
       if (!mounted) return;
       setState(() {
-        _lastEventJson = event == null ? null : const JsonEncoder.withIndent('  ').convert(event.toMap());
+        _lastEventJson = event == null
+            ? null
+            : const JsonEncoder.withIndent('  ').convert(event.toMap());
         _lastEventTimestamp = event?.timestamp;
-        _status = event == null ? 'No background event captured yet.' : 'Last background event logged to console.';
+        _status = event == null
+            ? 'No background event captured yet.'
+            : 'Last background event logged to console.';
       });
     } on PlatformException catch (error) {
       if (!mounted) return;
-      setState(() => _status = 'Unable to log the last event: ${error.message}');
+      setState(
+        () => _status = 'Unable to log the last event: ${error.message}',
+      );
     }
   }
-
-
 
   Future<void> _associate() async {
     final address = _addressController.text.trim();
@@ -296,7 +316,8 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
 
       if (!mounted) return;
       setState(() {
-        _status = 'Association completed for ${association.macAddress ?? 'unknown device'}.';
+        _status =
+            'Association completed for ${association.macAddress ?? 'unknown device'}.';
       });
       await _refreshAssociations();
       await _refreshLastEvent();
@@ -314,18 +335,25 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
     try {
       await _manager.disassociate(association);
       if (!mounted) return;
-      setState(() => _status = 'Association removed for ${association.macAddress ?? 'unknown device'}');
+      setState(
+        () => _status =
+            'Association removed for ${association.macAddress ?? 'unknown device'}',
+      );
       await _refreshAssociations();
     } on PlatformException catch (error) {
       if (!mounted) return;
-      setState(() => _status = 'Unable to remove association: ${error.message}');
+      setState(
+        () => _status = 'Unable to remove association: ${error.message}',
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _lastEventSubtitle() {
@@ -385,40 +413,39 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          _InfoCard(
-            title: 'Status',
-            child: Text(_status),
-          ),
+          _InfoCard(title: 'Status', child: Text(_status)),
           const SizedBox(height: 12),
           _InfoCard(
             title: 'Runtime availability',
             child: Text(_available ? 'Available' : 'Not available'),
           ),
           const SizedBox(height: 12),
-           _InfoCard(
-             title: 'Background callback',
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text(_callbackRegistered ? 'Registered (auto)' : 'Not registered'),
-                 const SizedBox(height: 12),
-                 Wrap(
-                   spacing: 12,
-                   runSpacing: 12,
-                   children: [
-                     OutlinedButton(
-                       onPressed: _busy ? null : _refreshLastEvent,
-                       child: const Text('Reload last event'),
-                     ),
-                     OutlinedButton(
-                       onPressed: _busy ? null : _logLastEvent,
-                       child: const Text('Log last event'),
-                     ),
-                   ],
-                 ),
-               ],
-             ),
-           ),
+          _InfoCard(
+            title: 'Background callback',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _callbackRegistered ? 'Registered (auto)' : 'Not registered',
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _busy ? null : _refreshLastEvent,
+                      child: const Text('Reload last event'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _busy ? null : _logLastEvent,
+                      child: const Text('Log last event'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           _InfoCard(
             title: 'Association setup',
@@ -451,14 +478,20 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
                         .map(
                           (association) => ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(association.displayName ?? association.macAddress ?? 'Unknown device'),
+                            title: Text(
+                              association.displayName ??
+                                  association.macAddress ??
+                                  'Unknown device',
+                            ),
                             subtitle: Text(
                               'MAC: ${association.macAddress ?? 'n/a'}\n'
                               'Association ID: ${association.associationId?.toString() ?? 'n/a'}',
                             ),
                             isThreeLine: true,
                             trailing: TextButton(
-                              onPressed: _busy ? null : () => _disassociate(association),
+                              onPressed: _busy
+                                  ? null
+                                  : () => _disassociate(association),
                               child: const Text('Remove'),
                             ),
                           ),
@@ -475,14 +508,14 @@ class _CompanionDeviceManagerHomePageState extends State<CompanionDeviceManagerH
             ),
           ),
           const SizedBox(height: 12),
-           const _InfoCard(
-             title: 'Notes',
-             child: Text(
-               'The background callback is auto-registered on app startup and executes with full Dart access, '
-               'even when the app is backgrounded or killed. Device presence events arrive via CompanionDeviceService '
-               'and trigger the callback in a headless Flutter engine with full plugin and storage access.',
-             ),
-           ),
+          const _InfoCard(
+            title: 'Notes',
+            child: Text(
+              'The background callback is auto-registered on app startup and executes with full Dart access, '
+              'even when the app is backgrounded or killed. Device presence events arrive via CompanionDeviceService '
+              'and trigger the callback in a headless Flutter engine with full plugin and storage access.',
+            ),
+          ),
         ],
       ),
     );
