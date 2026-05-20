@@ -22,11 +22,11 @@ API and provides a simple Dart-facing association flow plus a background wake ca
 
 ## Documentation
 
-Detailed design and implementation notes live in the `docs/` folder:
+Detailed design and implementation notes live in the `doc/` folder:
 
-- `docs/project-architecture.md`
-- `docs/public-api.md`
-- `docs/example-app.md`
+- `doc/project-architecture.md`
+- `doc/public-api.md`
+- `doc/example-app.md`
 
 ## Installation
 

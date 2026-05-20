@@ -20,7 +20,7 @@
 - Added background callback registration for wake scenarios using `CompanionDeviceService`.
 - Added Android native storage for callback handles and last background event payload.
 - Reworked the example app to demonstrate the full association and wake callback flow.
-- Added detailed documentation in `docs/` and a pub.dev-style root README.
+- Added detailed documentation in `doc/` and a pub.dev-style root README.
 
 ## 0.0.1
 
