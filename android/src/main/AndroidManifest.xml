@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="it.poggi.companion_device_manager">
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+
     <uses-feature
         android:name="android.software.companion_device_setup"
         android:required="false" />
@@ -7,7 +9,7 @@
     <application>
         <service
             android:name=".CompanionDeviceBackgroundService"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
             <intent-filter>
                 <action android:name="android.companion.CompanionDeviceService" />

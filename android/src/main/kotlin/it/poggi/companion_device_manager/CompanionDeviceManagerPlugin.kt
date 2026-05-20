@@ -2,6 +2,7 @@ package it.poggi.companion_device_manager
 
 import android.app.Activity
 import android.bluetooth.le.ScanFilter
+import android.companion.AssociationInfo
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
@@ -13,6 +14,7 @@ import android.companion.AssociationRequest
 import android.companion.BluetoothDeviceFilter
 import android.companion.BluetoothLeDeviceFilter
 import android.companion.CompanionDeviceManager
+import android.companion.ObservingDevicePresenceRequest
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -54,6 +56,10 @@ class CompanionDeviceManagerPlugin :
                 }
             },
         )
+
+        if (CompanionDeviceStorage.getBackgroundCallbackHandle(applicationContext) != null) {
+            startObservingPresenceForCurrentAssociations()
+        }
     }
 
     override fun onMethodCall(
@@ -221,6 +227,7 @@ class CompanionDeviceManagerPlugin :
                 "selfManaged" to false,
                 "lastTimeConnectedMs" to null,
             )
+            startObservingPresenceForCurrentAssociations()
             pendingResult.success(response)
             CompanionDeviceStorage.persistEvent(
                 applicationContext,
@@ -368,13 +375,118 @@ class CompanionDeviceManagerPlugin :
             return
         }
 
+        Log.d(tag, "Registering background callback handle=$handle")
         CompanionDeviceStorage.storeBackgroundCallbackHandle(applicationContext, handle)
+        startObservingPresenceForCurrentAssociations()
         result.success(null)
     }
 
     private fun clearBackgroundCallback(result: Result) {
+        Log.d(tag, "Clearing background callback")
+        stopObservingPresenceForCurrentAssociations()
         CompanionDeviceStorage.clearBackgroundCallbackHandle(applicationContext)
         result.success(null)
+    }
+
+    private fun startObservingPresenceForCurrentAssociations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            Log.d(tag, "Presence observation API not available on SDK ${Build.VERSION.SDK_INT}")
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            startObservingPresenceByAssociationId()
+            return
+        }
+
+        val associations = readAssociations()
+        if (associations.isEmpty()) {
+            Log.d(tag, "No associations available to start presence observation")
+            return
+        }
+
+        associations.mapNotNull { it["macAddress"] as? String }
+            .distinct()
+            .forEach { address ->
+                runCatching {
+                    getManager().startObservingDevicePresence(address)
+                }.onSuccess {
+                    Log.d(tag, "Started observing presence for address=$address")
+                }.onFailure { error ->
+                    Log.e(tag, "Failed to start observing legacy presence for $address", error)
+                }
+            }
+    }
+
+    private fun stopObservingPresenceForCurrentAssociations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopObservingPresenceByAssociationId()
+            return
+        }
+
+        readAssociations().mapNotNull { it["macAddress"] as? String }
+            .distinct()
+            .forEach { address ->
+                runCatching {
+                    getManager().stopObservingDevicePresence(address)
+                }.onSuccess {
+                    Log.d(tag, "Stopped observing presence for address=$address")
+                }.onFailure { error ->
+                    Log.w(tag, "Unable to stop observing legacy presence for $address", error)
+                }
+            }
+    }
+
+    private fun startObservingPresenceByAssociationId() {
+        val myAssociations = readMyAssociations()
+        if (myAssociations.isEmpty()) {
+            Log.d(tag, "No associations available to start id-based presence observation")
+            return
+        }
+
+        myAssociations.forEach { association ->
+            val request = ObservingDevicePresenceRequest.Builder()
+                .setAssociationId(association.id)
+                .build()
+            runCatching {
+                getManager().startObservingDevicePresence(request)
+            }.onSuccess {
+                Log.d(tag, "Started observing presence for associationId=${association.id} mac=${association.deviceMacAddress}")
+            }.onFailure { error ->
+                Log.e(tag, "Failed to start observing presence for associationId=${association.id}", error)
+            }
+        }
+    }
+
+    private fun stopObservingPresenceByAssociationId() {
+        readMyAssociations().forEach { association ->
+            val request = ObservingDevicePresenceRequest.Builder()
+                .setAssociationId(association.id)
+                .build()
+            runCatching {
+                getManager().stopObservingDevicePresence(request)
+            }.onSuccess {
+                Log.d(tag, "Stopped observing presence for associationId=${association.id}")
+            }.onFailure { error ->
+                Log.w(tag, "Unable to stop observing presence for associationId=${association.id}", error)
+            }
+        }
+    }
+
+    private fun readMyAssociations(): List<AssociationInfo> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return emptyList()
+        }
+
+        return runCatching {
+            getManager().myAssociations
+        }.onFailure { error ->
+            Log.e(tag, "Unable to read myAssociations", error)
+        }.getOrElse { emptyList() }
     }
 
     private fun finishPendingAssociationError(code: String, message: String, error: Throwable?) {

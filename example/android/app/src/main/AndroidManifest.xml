@@ -1,4 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Bluetooth permissions required for Companion Device Manager BLE scanning.
+         BLUETOOTH_SCAN and BLUETOOTH_CONNECT are required on Android 12+ (API 31+).
+         BLUETOOTH is required on older Android versions. -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+
     <application
         android:label="companion_device_manager_example"
         android:name="${applicationName}"
