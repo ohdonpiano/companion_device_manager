@@ -18,14 +18,28 @@ class CompanionDeviceManager {
     return CompanionDeviceManagerPlatform.instance.associate(request);
   }
 
+  Future<CompanionDeviceAssociation> associateByMacAddress(String macAddress) {
+    return CompanionDeviceManagerPlatform.instance.associateByMacAddress(
+      macAddress,
+    );
+  }
+
   Future<void> disassociate(CompanionDeviceAssociation association) {
     return CompanionDeviceManagerPlatform.instance.disassociate(association);
+  }
+
+  Future<void> disassociateByMacAddress(String macAddress) {
+    return CompanionDeviceManagerPlatform.instance.disassociateByMacAddress(
+      macAddress,
+    );
   }
 
   Future<void> registerBackgroundCallback(
     CompanionDeviceBackgroundCallback callback,
   ) {
-    return CompanionDeviceManagerPlatform.instance.registerBackgroundCallback(callback);
+    return CompanionDeviceManagerPlatform.instance.registerBackgroundCallback(
+      callback,
+    );
   }
 
   Future<void> clearBackgroundCallback() {
@@ -40,5 +54,3 @@ class CompanionDeviceManager {
     return CompanionDeviceManagerPlatform.instance.backgroundEvents;
   }
 }
-
-

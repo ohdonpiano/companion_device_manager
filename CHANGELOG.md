@@ -1,3 +1,10 @@
+## 0.2.1
+
+- Added `CompanionDeviceManager.associateByMacAddress(String macAddress)` convenience API for MAC-only association requests.
+- Added `CompanionDeviceManager.disassociateByMacAddress(String macAddress)` convenience API for cross-session disassociation using only MAC address.
+- Added strict MAC format validation (`XX:XX:XX:XX:XX:XX`) and uppercase normalization for the new convenience APIs.
+- Clarified Android API-level support in docs: association APIs require API 26+, while background presence/wake flows require API 31+ (with API 33+ id-based observation path).
+
 ## 0.2.0
 
 - Added `CompanionDeviceManager.backgroundEvents` for reactive `device_appeared`/`device_disappeared` updates.

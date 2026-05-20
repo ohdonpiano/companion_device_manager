@@ -8,6 +8,7 @@ API and provides a simple Dart-facing association flow plus a background wake ca
 
 - Android-only companion device association flow
 - typed Dart models for requests, associations, and events
+- convenience APIs for cross-session association/disassociation by MAC address
 - background callback registration for device-appearance wake-ups
 - reactive stream for real-time `device_appeared` / `device_disappeared` events
 - stored last background event for post-wake inspection
@@ -15,10 +16,23 @@ API and provides a simple Dart-facing association flow plus a background wake ca
 
 ## Supported platforms
 
-- Android: supported
+- Android: supported (see API-level matrix below)
 - iOS: not supported
 - Desktop: not supported
 - Web: not supported
+
+## Android API-level support
+
+This plugin wraps multiple Android CDM APIs that were introduced in different Android releases.
+
+- **Android 8.0+ (API 26+)**: base Companion Device Manager support (`isAvailable`, `associate`, `getAssociations`, `disassociate`).
+- **Android 12+ (API 31+)**: device presence observation (`startObservingDevicePresence`) used for background wake and presence events.
+- **Android 13+ (API 33+)**: id-based presence observation path (`ObservingDevicePresenceRequest`) used by this plugin when available.
+
+In short:
+
+- if you only need association flow, Android 8.0+ is enough
+- if you need wake/background presence events, target Android 12+
 
 ## Documentation
 
@@ -42,7 +56,7 @@ Or, for a published version:
 
 ```yaml
 dependencies:
-  companion_device_manager: ^0.2.0
+  companion_device_manager: ^0.2.1
 ```
 
 ## Basic usage
@@ -65,14 +79,7 @@ Future<void> setup() async {
 
   await manager.registerBackgroundCallback(companionDeviceWakeCallback);
 
-  final association = await manager.associate(
-	CompanionDeviceAssociationRequest(
-	  displayName: 'My Companion Device',
-	  filters: <CompanionDeviceFilter>[
-    CompanionDeviceFilter.bluetoothLe(address: '00:11:22:33:44:55'),
-	  ],
-	),
-  );
+  final association = await manager.associateByMacAddress('00:11:22:33:44:55');
 
   print('Associated device: ${association.macAddress}');
 }
@@ -85,6 +92,21 @@ void watchBackgroundEvents() {
   });
 }
 ```
+
+## MAC address format (for new convenience APIs)
+
+`associateByMacAddress` and `disassociateByMacAddress` accept only the Android classic MAC format:
+
+- `XX:XX:XX:XX:XX:XX` (hex pairs separated by `:`)
+- examples: `00:11:22:33:44:55`, `AA:BB:CC:DD:EE:FF`
+
+Behavior:
+
+- input is validated strictly
+- input is normalized to uppercase before being sent to Android APIs
+- the same normalized format is compatible with `CompanionDeviceAssociation.macAddress`
+
+If you need full control (custom display name / advanced filters), keep using `associate(CompanionDeviceAssociationRequest(...))`.
 
 ## Background callback requirements
 
@@ -101,10 +123,12 @@ Additionally, when the callback is invoked in a headless Flutter engine (after a
 Example:
 
 ```dart
+import 'dart:ui' as ui;
+import 'package:flutter/widgets.dart';
+
 @pragma('vm:entry-point')
 Future<void> companionDeviceWakeCallback() async {
   WidgetsFlutterBinding.ensureInitialized();
-  import 'dart:ui' as ui;
   ui.DartPluginRegistrant.ensureInitialized();
   
   // Now you can safely call plugin methods
@@ -122,6 +146,7 @@ The example app shows how to:
 
 - register and clear the background callback
 - start an association request
+- use MAC-only convenience APIs for cross-session operations
 - react to real-time `backgroundEvents` while the app is running
 - inspect current associations
 - read the last persisted background event
@@ -136,6 +161,10 @@ flutter run
 ## Android notes
 
 The plugin targets Android devices that support Companion Device Manager.
+
+`CompanionDeviceManager.isAvailable()` returns `true` only on Android 8.0+ (API 26+).
+
+Background presence observation and wake callbacks require Android 12+ (API 31+), because they rely on newer CDM presence APIs.
 
 Depending on the device type you are pairing with, you may also need Bluetooth-related runtime permissions in the host app.
 

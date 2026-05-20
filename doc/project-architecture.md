@@ -11,6 +11,12 @@ This plugin provides a simple Flutter-facing API for Android's [`CompanionDevice
 
 The plugin is Android-only. On other platforms, the package is intentionally unsupported.
 
+### Android compatibility at a glance
+
+- **API 26+ (Android 8.0+)**: core association/disassociation APIs are available.
+- **API 31+ (Android 12+)**: background wake and presence observation become available.
+- **API 33+ (Android 13+)**: plugin uses id-based observation (`ObservingDevicePresenceRequest`) where supported.
+
 ## Product direction
 
 The plugin is designed for apps that pair with a companion device such as:
@@ -29,7 +35,9 @@ The Dart API is intentionally small:
 - `CompanionDeviceManager.isAvailable()`
 - `CompanionDeviceManager.getAssociations()`
 - `CompanionDeviceManager.associate(...)`
+- `CompanionDeviceManager.associateByMacAddress(...)`
 - `CompanionDeviceManager.disassociate(...)`
+- `CompanionDeviceManager.disassociateByMacAddress(...)`
 - `CompanionDeviceManager.registerBackgroundCallback(...)`
 - `CompanionDeviceManager.clearBackgroundCallback()`
 - `CompanionDeviceManager.getLastBackgroundEvent()`
@@ -119,7 +127,8 @@ These can be added later without changing the basic architecture.
 
 The host app must provide:
 
-- an Android device running API 26+ for the association API
+- an Android device running API 26+ for association APIs
+- an Android device running API 31+ for wake/presence behavior
 - a top-level or static Dart callback for background wake-up
 - any Bluetooth/runtime permissions required by the target device type
 - a real companion device to test against
