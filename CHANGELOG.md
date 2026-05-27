@@ -1,3 +1,10 @@
+## 0.2.3
+
+- Added `REQUEST_COMPANION_RUN_IN_BACKGROUND` and `REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND` permissions for enhanced background operation support on Android 12+ devices.
+- Improved handling of background presence observation to ensure stable callback execution across device lifecycle events.
+- Enhanced native debug logging for better troubleshooting of background callback and presence observation flows.
+- Updated Android manifest with strict permission requirements for background operations.
+
 ## 0.2.2
 
 - **Breaking change**: `registerBackgroundCallback` now requires an informative callback signature: `Future<void> Function(CompanionDeviceEvent event)`.

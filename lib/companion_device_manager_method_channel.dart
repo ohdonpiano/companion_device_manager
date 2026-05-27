@@ -142,4 +142,14 @@ class MethodChannelCompanionDeviceManager extends CompanionDeviceManagerPlatform
       return CompanionDeviceEvent.fromMap(payload);
     }).asBroadcastStream();
   }
+
+  @override
+  Future<String?> getNativeDebugLog() async {
+    return methodChannel.invokeMethod<String>('getNativeDebugLog');
+  }
+
+  @override
+  Future<void> clearNativeDebugLog() async {
+    await methodChannel.invokeMethod<void>('clearNativeDebugLog');
+  }
 }

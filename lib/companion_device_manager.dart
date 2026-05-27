@@ -53,4 +53,12 @@ class CompanionDeviceManager {
   Stream<CompanionDeviceEvent> get backgroundEvents {
     return CompanionDeviceManagerPlatform.instance.backgroundEvents;
   }
+
+  Future<String?> getNativeDebugLog() {
+    return CompanionDeviceManagerPlatform.instance.getNativeDebugLog();
+  }
+
+  Future<void> clearNativeDebugLog() {
+    return CompanionDeviceManagerPlatform.instance.clearNativeDebugLog();
+  }
 }

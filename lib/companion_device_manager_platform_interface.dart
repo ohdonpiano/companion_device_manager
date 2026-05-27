@@ -86,6 +86,14 @@ abstract class CompanionDeviceManagerPlatform extends PlatformInterface {
   Stream<CompanionDeviceEvent> get backgroundEvents {
     throw UnimplementedError('backgroundEvents has not been implemented.');
   }
+
+  Future<String?> getNativeDebugLog() {
+    throw UnimplementedError('getNativeDebugLog() has not been implemented.');
+  }
+
+  Future<void> clearNativeDebugLog() {
+    throw UnimplementedError('clearNativeDebugLog() has not been implemented.');
+  }
 }
 
 String _normalizeClassicMacAddress(String macAddress) {

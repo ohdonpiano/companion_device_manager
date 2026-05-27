@@ -18,12 +18,13 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
     private val tag = "CDMBackgroundService"
     private var activeEngine: FlutterEngine? = null
     private var backgroundChannel: MethodChannel? = null
-    private var pendingEventPayload: Map<String, Any?>? = null
-    private var pendingCallbackHandle: Long? = null
+    private val pendingEvents: ArrayDeque<Pair<Map<String, Any?>, Long>> = ArrayDeque()
+    private var dispatcherReady: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
         Log.d(tag, "Service onCreate called - service is alive")
+        CompanionDeviceStorage.appendNativeDebugLog(applicationContext, "$tag onCreate")
     }
 
     override fun onDeviceAppeared(associationInfo: AssociationInfo) {
@@ -57,6 +58,10 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         CompanionDeviceStorage.persistEvent(context, payload)
         CompanionDeviceEventStream.emit(payload)
         Log.d(tag, "Persisted and emitted event type=$type")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            context,
+            "$tag event=$type id=${associationInfo.id} mac=${associationInfo.deviceMacAddress}",
+        )
 
         val callbackHandle = CompanionDeviceStorage.getBackgroundCallbackHandle(context)
         val dispatcherHandle = CompanionDeviceStorage.getBackgroundDispatcherHandle(context)
@@ -71,7 +76,8 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
 
         Log.d(tag, "Found registered callback handle=$callbackHandle dispatcherHandle=$dispatcherHandle")
         runOnMainThread {
-            startBackgroundCallbackEngine(context, dispatcherHandle, callbackHandle, payload)
+            pendingEvents.addLast(payload to callbackHandle)
+            startBackgroundCallbackEngine(context, dispatcherHandle)
         }
     }
 
@@ -86,21 +92,25 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
     private fun startBackgroundCallbackEngine(
         context: Context,
         dispatcherHandle: Long,
-        callbackHandle: Long,
-        eventPayload: Map<String, Any?>,
     ) {
-        activeEngine?.destroy()
-        activeEngine = null
-        backgroundChannel = null
+        if (activeEngine != null && dispatcherReady) {
+            dispatchPendingEventToDart()
+            return
+        }
 
-        pendingEventPayload = eventPayload
-        pendingCallbackHandle = callbackHandle
-
-        val callbackInfo = FlutterCallbackInformation.lookupCallbackInformation(dispatcherHandle)
-            ?: run {
-                Log.e(tag, "Unable to resolve Flutter callback info for dispatcherHandle=$dispatcherHandle")
-                return
-            }
+        val callbackInfo = try {
+            FlutterCallbackInformation.lookupCallbackInformation(dispatcherHandle)
+        } catch (error: Throwable) {
+            CompanionDeviceStorage.appendNativeDebugLog(
+                context,
+                "$tag callback lookup failed handle=$dispatcherHandle err=${error.message}",
+            )
+            Log.e(tag, "Unable to resolve Flutter callback info for dispatcherHandle=$dispatcherHandle", error)
+            null
+        } ?: run {
+            Log.e(tag, "Unable to resolve Flutter callback info for dispatcherHandle=$dispatcherHandle")
+            return
+        }
 
         val flutterLoader: FlutterLoader = FlutterInjector.instance().flutterLoader()
         flutterLoader.startInitialization(context)
@@ -108,11 +118,13 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
 
         val engine = FlutterEngine(context)
         activeEngine = engine
+        dispatcherReady = false
 
         val channel = MethodChannel(engine.dartExecutor.binaryMessenger, BACKGROUND_CHANNEL_NAME)
         backgroundChannel = channel
         channel.setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
             if (call.method == "backgroundDispatcherInitialized") {
+                dispatcherReady = true
                 dispatchPendingEventToDart()
                 result.success(null)
             } else {
@@ -128,37 +140,41 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         )
         engine.dartExecutor.executeDartCallback(dartCallback)
         Log.d(tag, "Executed Dart background dispatcher callback")
+        CompanionDeviceStorage.appendNativeDebugLog(context, "$tag headless engine started")
     }
 
     private fun dispatchPendingEventToDart() {
         val channel = backgroundChannel
-        val eventPayload = pendingEventPayload
-        val callbackHandle = pendingCallbackHandle
-        if (channel == null || eventPayload == null || callbackHandle == null) {
-            Log.w(tag, "Skipping event dispatch because payload, handle, or channel is missing")
+        if (channel == null || !dispatcherReady) {
             return
         }
 
-        channel.invokeMethod(
-            "dispatchBackgroundEvent",
-            mapOf<String, Any?>(
-                "event" to eventPayload,
-                "callbackHandle" to callbackHandle,
-            ),
-        )
-        pendingEventPayload = null
-        pendingCallbackHandle = null
-        Log.d(tag, "Delivered background event payload to Dart dispatcher")
+        while (pendingEvents.isNotEmpty()) {
+            val (eventPayload, callbackHandle) = pendingEvents.removeFirst()
+            channel.invokeMethod(
+                "dispatchBackgroundEvent",
+                mapOf<String, Any?>(
+                    "event" to eventPayload,
+                    "callbackHandle" to callbackHandle,
+                ),
+            )
+            CompanionDeviceStorage.appendNativeDebugLog(
+                applicationContext,
+                "$tag dispatched type=${eventPayload["type"]} callback=$callbackHandle",
+            )
+        }
+        Log.d(tag, "Delivered background event payload(s) to Dart dispatcher")
     }
 
     override fun onDestroy() {
         backgroundChannel?.setMethodCallHandler(null)
         backgroundChannel = null
-        pendingEventPayload = null
-        pendingCallbackHandle = null
+        pendingEvents.clear()
+        dispatcherReady = false
         activeEngine?.destroy()
         activeEngine = null
         Log.d(tag, "Service onDestroy called")
+        CompanionDeviceStorage.appendNativeDebugLog(applicationContext, "$tag onDestroy")
         super.onDestroy()
     }
 

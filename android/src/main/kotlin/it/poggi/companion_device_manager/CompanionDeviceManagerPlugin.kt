@@ -77,6 +77,11 @@ class CompanionDeviceManagerPlugin :
             "registerBackgroundCallback" -> registerBackgroundCallback(call, result)
             "clearBackgroundCallback" -> clearBackgroundCallback(result)
             "getLastBackgroundEvent" -> result.success(CompanionDeviceStorage.getLastEventMap(applicationContext))
+            "getNativeDebugLog" -> result.success(CompanionDeviceStorage.getNativeDebugLog(applicationContext))
+            "clearNativeDebugLog" -> {
+                CompanionDeviceStorage.clearNativeDebugLog(applicationContext)
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
@@ -382,6 +387,10 @@ class CompanionDeviceManagerPlugin :
         }
 
         Log.d(tag, "Registering background callback handle=$handle dispatcherHandle=$dispatcherHandle")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            applicationContext,
+            "$tag register callback callback=$handle dispatcher=$dispatcherHandle",
+        )
         CompanionDeviceStorage.storeBackgroundCallbackHandle(applicationContext, handle)
         CompanionDeviceStorage.storeBackgroundDispatcherHandle(applicationContext, dispatcherHandle)
         schedulePresenceObservationStart("callback_registered")
@@ -398,9 +407,17 @@ class CompanionDeviceManagerPlugin :
         backgroundExecutor.execute {
             runCatching {
                 Log.d(tag, "Starting presence observation asynchronously for reason=$reason")
+                CompanionDeviceStorage.appendNativeDebugLog(
+                    context,
+                    "$tag start observing reason=$reason",
+                )
                 startObservingPresenceForCurrentAssociations()
             }.onFailure { error ->
                 Log.e(tag, "Failed to start presence observation for reason=$reason", error)
+                CompanionDeviceStorage.appendNativeDebugLog(
+                    context,
+                    "$tag observing failed reason=$reason err=${error.message}",
+                )
             }
         }
     }
@@ -437,8 +454,16 @@ class CompanionDeviceManagerPlugin :
                     getManager().startObservingDevicePresence(address)
                 }.onSuccess {
                     Log.d(tag, "Started observing presence for address=$address")
+                        CompanionDeviceStorage.appendNativeDebugLog(
+                            applicationContext,
+                            "$tag observing legacy address=$address",
+                        )
                 }.onFailure { error ->
                     Log.e(tag, "Failed to start observing legacy presence for $address", error)
+                        CompanionDeviceStorage.appendNativeDebugLog(
+                            applicationContext,
+                            "$tag observing legacy failed address=$address err=${error.message}",
+                        )
                 }
             }
     }
@@ -481,8 +506,16 @@ class CompanionDeviceManagerPlugin :
                 getManager().startObservingDevicePresence(request)
             }.onSuccess {
                 Log.d(tag, "Started observing presence for associationId=${association.id} mac=${association.deviceMacAddress}")
+                CompanionDeviceStorage.appendNativeDebugLog(
+                    applicationContext,
+                    "$tag observing id=${association.id} mac=${association.deviceMacAddress}",
+                )
             }.onFailure { error ->
                 Log.e(tag, "Failed to start observing presence for associationId=${association.id}", error)
+                CompanionDeviceStorage.appendNativeDebugLog(
+                    applicationContext,
+                    "$tag observing failed id=${association.id} err=${error.message}",
+                )
             }
         }
     }
@@ -535,6 +568,8 @@ internal object CompanionDeviceStorage {
     private const val KEY_BACKGROUND_CALLBACK_HANDLE = "background_callback_handle"
     private const val KEY_BACKGROUND_DISPATCHER_HANDLE = "background_dispatcher_handle"
     private const val KEY_LAST_EVENT_JSON = "last_event_json"
+    private const val KEY_NATIVE_DEBUG_LOG = "native_debug_log"
+    private const val MAX_NATIVE_DEBUG_LOG_CHARS = 64000
 
     fun storeBackgroundCallbackHandle(context: Context?, handle: Long) {
         context ?: return
@@ -597,6 +632,34 @@ internal object CompanionDeviceStorage {
             .getString(KEY_LAST_EVENT_JSON, null)
             ?: return null
         return runCatching { parseJsonObject(json) }.getOrNull()
+    }
+
+    fun appendNativeDebugLog(context: Context?, message: String) {
+        context ?: return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val current = prefs.getString(KEY_NATIVE_DEBUG_LOG, "") ?: ""
+        val line = "${System.currentTimeMillis()}|$message\n"
+        val combined = current + line
+        val trimmed = if (combined.length > MAX_NATIVE_DEBUG_LOG_CHARS) {
+            combined.takeLast(MAX_NATIVE_DEBUG_LOG_CHARS)
+        } else {
+            combined
+        }
+        prefs.edit().putString(KEY_NATIVE_DEBUG_LOG, trimmed).commit()
+    }
+
+    fun getNativeDebugLog(context: Context?): String? {
+        context ?: return null
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_NATIVE_DEBUG_LOG, null)
+    }
+
+    fun clearNativeDebugLog(context: Context?) {
+        context ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_NATIVE_DEBUG_LOG)
+            .commit()
     }
 
     private fun toJson(value: Any?): String {

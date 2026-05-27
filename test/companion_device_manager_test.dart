@@ -73,6 +73,12 @@ class MockCompanionDeviceManagerPlatform
           timestampMs: 1,
         ),
       );
+
+  @override
+  Future<String?> getNativeDebugLog() => Future.value(null);
+
+  @override
+  Future<void> clearNativeDebugLog() => Future.value();
 }
 
 void main() {
