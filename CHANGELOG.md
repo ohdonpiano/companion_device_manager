@@ -1,3 +1,9 @@
+## 0.2.4
+
+- Removed direct application of `org.jetbrains.kotlin.android` from the plugin's Android Gradle script.
+- Updated Android plugin build setup to align with Flutter's upcoming requirement that plugins must not apply KGP directly.
+- Prevents future Flutter build failures related to plugin-level Kotlin Gradle Plugin usage.
+
 ## 0.2.3
 
 - Added `REQUEST_COMPANION_RUN_IN_BACKGROUND` and `REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND` permissions for enhanced background operation support on Android 12+ devices.
