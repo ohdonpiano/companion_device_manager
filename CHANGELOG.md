@@ -1,3 +1,8 @@
+## 0.2.5
+
+- Fixed a crash on Android 11 devices by only calling `AssociationRequest.Builder.setDisplayName(...)` on Android 13+ (API 33+).
+- Documented the API-level limitation for association display names in the public docs.
+
 ## 0.2.4
 
 - Removed direct application of `org.jetbrains.kotlin.android` from the plugin's Android Gradle script.

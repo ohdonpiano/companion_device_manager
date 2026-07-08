@@ -290,8 +290,12 @@ class CompanionDeviceManagerPlugin :
         }
 
         val builder = AssociationRequest.Builder()
-            .setDisplayName(displayName)
-        Log.d(tag, "Set display name: $displayName")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            builder.setDisplayName(displayName)
+            Log.d(tag, "Set display name: $displayName")
+        } else {
+            Log.d(tag, "Skipping display name on API ${Build.VERSION.SDK_INT}; requires API 33+")
+        }
 
         val selfManaged = arguments?.get("selfManaged") as? Boolean ?: false
         if (selfManaged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

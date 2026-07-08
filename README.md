@@ -28,6 +28,7 @@ This plugin wraps multiple Android CDM APIs that were introduced in different An
 - **Android 8.0+ (API 26+)**: base Companion Device Manager support (`isAvailable`, `associate`, `getAssociations`, `disassociate`).
 - **Android 12+ (API 31+)**: device presence observation (`startObservingDevicePresence`) used for background wake and presence events.
 - **Android 13+ (API 33+)**: id-based presence observation path (`ObservingDevicePresenceRequest`) used by this plugin when available.
+- **Android 13+ (API 33+)**: association display names are passed to `AssociationRequest.Builder.setDisplayName(...)`; older versions keep the request working but ignore the display name.
 
 In short:
 
@@ -49,14 +50,14 @@ Add the dependency to your `pubspec.yaml`:
 ```yaml
 dependencies:
   companion_device_manager:
-	path: ../companion_device_manager
+    path: ../companion_device_manager
 ```
 
 Or, for a published version:
 
 ```yaml
 dependencies:
-  companion_device_manager: ^0.2.2
+  companion_device_manager: ^0.2.5
 ```
 
 ## Basic usage
@@ -208,4 +209,3 @@ Before publishing to pub.dev, verify that:
 - the version is bumped appropriately
 - the Android-only support statement stays visible
 - the docs folder remains in sync with the public API
-

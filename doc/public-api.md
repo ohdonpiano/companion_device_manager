@@ -32,6 +32,8 @@ Starts the Android association chooser flow.
 
 The request currently focuses on Bluetooth address-based filters and a display name.
 
+`displayName` is applied to the native `AssociationRequest.Builder` only on Android 13+ (API 33+); older versions keep the association flow working but do not set the platform display name.
+
 ### `Future<CompanionDeviceAssociation> associateByMacAddress(String macAddress)`
 
 Convenience API for MAC-only association requests.
@@ -158,4 +160,3 @@ Future<void> companionDeviceWakeCallback(CompanionDeviceEvent event) async {
   );
 }
 ```
-
