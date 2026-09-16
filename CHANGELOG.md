@@ -1,3 +1,12 @@
+## 1.0.0
+
+- Added Gradle 9 / Android Gradle Plugin 9.x compatibility: replaced the deprecated
+  `kotlinOptions { jvmTarget = ... }` block (now a hard compile error under Kotlin
+  2.4 / AGP 9.1) with the `kotlin { compilerOptions { jvmTarget = ... } }` DSL.
+- Verified the plugin builds and compiles cleanly as a subproject in a host app
+  using Gradle 9.3.1 / AGP 9.1.0 / Kotlin 2.4.0.
+- No public API changes; promoted to 1.0.0 as the first stable release.
+
 ## 0.2.5
 
 - Fixed a crash on Android 11 devices by only calling `AssociationRequest.Builder.setDisplayName(...)` on Android 13+ (API 33+).

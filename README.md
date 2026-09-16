@@ -35,6 +35,13 @@ In short:
 - if you only need association flow, Android 8.0+ is enough
 - if you need wake/background presence events, target Android 12+
 
+## Gradle / AGP compatibility
+
+The plugin's Android build script is compatible with both classic Gradle/AGP setups
+and Gradle 9 / Android Gradle Plugin 9.x host projects. It configures the Kotlin JVM
+target via the `kotlin { compilerOptions { ... } }` DSL instead of the deprecated
+`kotlinOptions` block, which AGP 9.x / Kotlin 2.4+ treat as a hard compile error.
+
 ## Documentation
 
 Detailed design and implementation notes live in the `doc/` folder:
