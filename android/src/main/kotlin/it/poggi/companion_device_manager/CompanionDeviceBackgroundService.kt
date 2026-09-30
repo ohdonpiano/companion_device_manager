@@ -28,12 +28,22 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
     }
 
     override fun onDeviceAppeared(associationInfo: AssociationInfo) {
-        Log.d(tag, "onDeviceAppeared id=${associationInfo.id} mac=${associationInfo.deviceMacAddress}")
+        val mac = associationInfo.deviceMacAddress?.toString()
+        Log.d(tag, "onDeviceAppeared id=${associationInfo.id} mac=$mac")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            applicationContext,
+            "$tag callback_received type=device_appeared id=${associationInfo.id} mac=$mac",
+        )
         handleDeviceEvent("device_appeared", associationInfo)
     }
 
     override fun onDeviceDisappeared(associationInfo: AssociationInfo) {
-        Log.d(tag, "onDeviceDisappeared id=${associationInfo.id} mac=${associationInfo.deviceMacAddress}")
+        val mac = associationInfo.deviceMacAddress?.toString()
+        Log.d(tag, "onDeviceDisappeared id=${associationInfo.id} mac=$mac")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            applicationContext,
+            "$tag callback_received type=device_disappeared id=${associationInfo.id} mac=$mac",
+        )
         handleDeviceEvent("device_disappeared", associationInfo)
     }
 
@@ -67,14 +77,26 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         val dispatcherHandle = CompanionDeviceStorage.getBackgroundDispatcherHandle(context)
         if (callbackHandle == null) {
             Log.w(tag, "No registered background callback handle; event will not execute Dart callback")
+            CompanionDeviceStorage.appendNativeDebugLog(
+                context,
+                "$tag callback_not_dispatched type=$type reason=missing_callback_handle",
+            )
             return
         }
         if (dispatcherHandle == null) {
             Log.e(tag, "Missing background dispatcher handle. Re-register callback from Dart.")
+            CompanionDeviceStorage.appendNativeDebugLog(
+                context,
+                "$tag callback_not_dispatched type=$type reason=missing_dispatcher_handle",
+            )
             return
         }
 
         Log.d(tag, "Found registered callback handle=$callbackHandle dispatcherHandle=$dispatcherHandle")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            context,
+            "$tag callback_dispatch_queued type=$type callback=$callbackHandle dispatcher=$dispatcherHandle",
+        )
         runOnMainThread {
             pendingEvents.addLast(payload to callbackHandle)
             startBackgroundCallbackEngine(context, dispatcherHandle)
@@ -103,7 +125,7 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         } catch (error: Throwable) {
             CompanionDeviceStorage.appendNativeDebugLog(
                 context,
-                "$tag callback lookup failed handle=$dispatcherHandle err=${error.message}",
+                "$tag callback_lookup_failed handle=$dispatcherHandle error_class=${error.javaClass.name} error_message=${error.message ?: "<none>"}",
             )
             Log.e(tag, "Unable to resolve Flutter callback info for dispatcherHandle=$dispatcherHandle", error)
             null
@@ -140,7 +162,10 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         )
         engine.dartExecutor.executeDartCallback(dartCallback)
         Log.d(tag, "Executed Dart background dispatcher callback")
-        CompanionDeviceStorage.appendNativeDebugLog(context, "$tag headless engine started")
+        CompanionDeviceStorage.appendNativeDebugLog(
+            context,
+            "$tag headless_engine_started dispatcher=$dispatcherHandle",
+        )
     }
 
     private fun dispatchPendingEventToDart() {
@@ -160,7 +185,7 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
             )
             CompanionDeviceStorage.appendNativeDebugLog(
                 applicationContext,
-                "$tag dispatched type=${eventPayload["type"]} callback=$callbackHandle",
+                "$tag callback_dispatched type=${eventPayload["type"]} callback=$callbackHandle",
             )
         }
         Log.d(tag, "Delivered background event payload(s) to Dart dispatcher")
@@ -182,4 +207,3 @@ class CompanionDeviceBackgroundService : CompanionDeviceService() {
         private const val BACKGROUND_CHANNEL_NAME = "companion_device_manager/background"
     }
 }
-

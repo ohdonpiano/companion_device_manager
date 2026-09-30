@@ -1,3 +1,11 @@
+## 1.0.1
+
+- Added detailed native diagnostics for Companion Device Manager presence
+  observation, including API selection, request construction, fallback behavior,
+  exceptions, callbacks, and headless event dispatch.
+- Improved logging for legacy MAC-based observation and stop operations to make
+  device-specific compatibility issues easier to diagnose.
+
 ## 1.0.0
 
 - Added Gradle 9 / Android Gradle Plugin 9.x compatibility: replaced the deprecated

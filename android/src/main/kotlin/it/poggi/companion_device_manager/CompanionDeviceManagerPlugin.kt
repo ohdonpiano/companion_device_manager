@@ -413,14 +413,15 @@ class CompanionDeviceManagerPlugin :
                 Log.d(tag, "Starting presence observation asynchronously for reason=$reason")
                 CompanionDeviceStorage.appendNativeDebugLog(
                     context,
-                    "$tag start observing reason=$reason",
+                    "$tag presence_start reason=$reason sdk=${Build.VERSION.SDK_INT} release=${Build.VERSION.RELEASE}",
                 )
                 startObservingPresenceForCurrentAssociations()
             }.onFailure { error ->
-                Log.e(tag, "Failed to start presence observation for reason=$reason", error)
+                val details = describeError(error)
+                Log.e(tag, "Failed to start presence observation for reason=$reason $details", error)
                 CompanionDeviceStorage.appendNativeDebugLog(
                     context,
-                    "$tag observing failed reason=$reason err=${error.message}",
+                    "$tag presence_start_failed reason=$reason $details",
                 )
             }
         }
@@ -437,10 +438,12 @@ class CompanionDeviceManagerPlugin :
     private fun startObservingPresenceForCurrentAssociations() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             Log.d(tag, "Presence observation API not available on SDK ${Build.VERSION.SDK_INT}")
+            appendPresenceLog("presence_unavailable sdk=${Build.VERSION.SDK_INT} reason=api_below_31")
             return
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appendPresenceLog("presence_path sdk=${Build.VERSION.SDK_INT} path=association_id_then_legacy_mac")
             startObservingPresenceByAssociationId()
             return
         }
@@ -448,49 +451,59 @@ class CompanionDeviceManagerPlugin :
         val associations = readAssociations()
         if (associations.isEmpty()) {
             Log.d(tag, "No associations available to start presence observation")
+            appendPresenceLog("presence_no_associations sdk=${Build.VERSION.SDK_INT} path=legacy_mac")
             return
         }
 
+        appendPresenceLog(
+            "presence_path sdk=${Build.VERSION.SDK_INT} path=legacy_mac associations=${associations.size}",
+        )
         associations.mapNotNull { it["macAddress"] as? String }
             .distinct()
             .forEach { address ->
+                appendPresenceLog("legacy_start mac=$address source=direct")
                 runCatching {
                     getManager().startObservingDevicePresence(address)
                 }.onSuccess {
                     Log.d(tag, "Started observing presence for address=$address")
-                        CompanionDeviceStorage.appendNativeDebugLog(
-                            applicationContext,
-                            "$tag observing legacy address=$address",
-                        )
+                    appendPresenceLog("legacy_success mac=$address source=direct")
                 }.onFailure { error ->
-                    Log.e(tag, "Failed to start observing legacy presence for $address", error)
-                        CompanionDeviceStorage.appendNativeDebugLog(
-                            applicationContext,
-                            "$tag observing legacy failed address=$address err=${error.message}",
-                        )
+                    val details = describeError(error)
+                    Log.e(tag, "Failed to start observing legacy presence for $address $details", error)
+                    appendPresenceLog("legacy_failed mac=$address source=direct $details")
                 }
             }
     }
 
     private fun stopObservingPresenceForCurrentAssociations() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            appendPresenceLog("presence_stop_skipped sdk=${Build.VERSION.SDK_INT} reason=api_below_31")
             return
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appendPresenceLog("presence_stop_path sdk=${Build.VERSION.SDK_INT} path=association_id_then_legacy_mac")
             stopObservingPresenceByAssociationId()
             return
         }
 
-        readAssociations().mapNotNull { it["macAddress"] as? String }
+        val associations = readAssociations()
+        appendPresenceLog(
+            "presence_stop_path sdk=${Build.VERSION.SDK_INT} path=legacy_mac associations=${associations.size}",
+        )
+        associations.mapNotNull { it["macAddress"] as? String }
             .distinct()
             .forEach { address ->
+                appendPresenceLog("legacy_stop mac=$address source=direct")
                 runCatching {
                     getManager().stopObservingDevicePresence(address)
                 }.onSuccess {
                     Log.d(tag, "Stopped observing presence for address=$address")
+                    appendPresenceLog("legacy_stop_success mac=$address source=direct")
                 }.onFailure { error ->
-                    Log.w(tag, "Unable to stop observing legacy presence for $address", error)
+                    val details = describeError(error)
+                    Log.w(tag, "Unable to stop observing legacy presence for $address $details", error)
+                    appendPresenceLog("legacy_stop_failed mac=$address source=direct $details")
                 }
             }
     }
@@ -499,64 +512,114 @@ class CompanionDeviceManagerPlugin :
         val myAssociations = readMyAssociations()
         if (myAssociations.isEmpty()) {
             Log.d(tag, "No associations available to start id-based presence observation")
+            appendPresenceLog(
+                "presence_no_associations sdk=${Build.VERSION.SDK_INT} path=association_id",
+            )
             return
         }
 
+        appendPresenceLog(
+            "presence_associations_loaded count=${myAssociations.size} sdk=${Build.VERSION.SDK_INT}",
+        )
         myAssociations.forEach { association ->
+            val associationMac = association.deviceMacAddress?.toString()
+            appendPresenceLog(
+                "id_start association_id=${association.id} mac=$associationMac",
+            )
             runCatching {
                 // Build the request inside runCatching: on some OEM ROMs (e.g. Samsung One UI 7)
                 // ObservingDevicePresenceRequest.Builder() is a @FlaggedApi whose no-arg constructor
                 // is absent, throwing NoSuchMethodError at runtime. Catching here lets us fall back.
+                appendPresenceLog(
+                    "id_builder_start association_id=${association.id} mac=$associationMac",
+                )
                 val request = ObservingDevicePresenceRequest.Builder()
                     .setAssociationId(association.id)
                     .build()
+                appendPresenceLog(
+                    "id_builder_success association_id=${association.id} mac=$associationMac",
+                )
                 getManager().startObservingDevicePresence(request)
             }.onSuccess {
-                Log.d(tag, "Started observing presence for associationId=${association.id} mac=${association.deviceMacAddress}")
-                CompanionDeviceStorage.appendNativeDebugLog(
-                    applicationContext,
-                    "$tag observing id=${association.id} mac=${association.deviceMacAddress}",
+                Log.d(tag, "Started observing presence for associationId=${association.id} mac=$associationMac")
+                appendPresenceLog(
+                    "id_success association_id=${association.id} mac=$associationMac",
                 )
             }.onFailure { error ->
-                Log.w(tag, "id-based observation failed for associationId=${association.id} (${error.javaClass.simpleName}), trying legacy MAC fallback", error)
-                CompanionDeviceStorage.appendNativeDebugLog(
-                    applicationContext,
-                    "$tag observing id-based failed id=${association.id} err=${error.message} – retrying with legacy MAC",
+                val details = describeError(error)
+                Log.w(
+                    tag,
+                    "id-based observation failed for associationId=${association.id} ($details), trying legacy MAC fallback",
+                    error,
+                )
+                appendPresenceLog(
+                    "id_failed association_id=${association.id} mac=$associationMac $details fallback=legacy_mac",
                 )
                 // Fallback: legacy string-based API for OEM ROMs where the new Builder is unavailable
                 val mac = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    association.deviceMacAddress?.toString()
-                } else null
+                    associationMac
+                } else {
+                    null
+                }
                 if (mac != null) {
+                    appendPresenceLog(
+                        "legacy_start association_id=${association.id} mac=$mac source=id_fallback",
+                    )
                     runCatching {
                         @Suppress("DEPRECATION")
                         getManager().startObservingDevicePresence(mac)
                     }.onSuccess {
                         Log.d(tag, "Started legacy MAC observation for associationId=${association.id} mac=$mac")
-                        CompanionDeviceStorage.appendNativeDebugLog(
-                            applicationContext,
-                            "$tag observing legacy-fallback id=${association.id} mac=$mac",
+                        appendPresenceLog(
+                            "legacy_success association_id=${association.id} mac=$mac source=id_fallback",
                         )
                     }.onFailure { legacyError ->
-                        Log.e(tag, "Legacy MAC observation also failed for associationId=${association.id} mac=$mac", legacyError)
-                        CompanionDeviceStorage.appendNativeDebugLog(
-                            applicationContext,
-                            "$tag observing legacy-fallback failed id=${association.id} mac=$mac err=${legacyError.message}",
+                        val legacyDetails = describeError(legacyError)
+                        Log.e(
+                            tag,
+                            "Legacy MAC observation also failed for associationId=${association.id} mac=$mac $legacyDetails",
+                            legacyError,
+                        )
+                        appendPresenceLog(
+                            "legacy_failed association_id=${association.id} mac=$mac source=id_fallback $legacyDetails",
                         )
                     }
                 } else {
-                    Log.e(tag, "Failed to start observing presence for associationId=${association.id}: no MAC available for legacy fallback", error)
-                    CompanionDeviceStorage.appendNativeDebugLog(
-                        applicationContext,
-                        "$tag observing failed id=${association.id} no-mac err=${error.message}",
+                    Log.e(
+                        tag,
+                        "Failed to start observing presence for associationId=${association.id}: no MAC available for legacy fallback $details",
+                        error,
+                    )
+                    appendPresenceLog(
+                        "legacy_unavailable association_id=${association.id} source=id_fallback reason=no_mac id_error=$details",
                     )
                 }
             }
         }
     }
 
+    private fun appendPresenceLog(message: String) {
+        CompanionDeviceStorage.appendNativeDebugLog(
+            applicationContext,
+            "$tag $message",
+        )
+    }
+
+    private fun describeError(error: Throwable): String {
+        val message = error.message?.replace('\n', ' ')?.trim()
+        return "error_class=${error.javaClass.name} error_message=${message ?: "<none>"}"
+    }
+
     private fun stopObservingPresenceByAssociationId() {
-        readMyAssociations().forEach { association ->
+        val associations = readMyAssociations()
+        appendPresenceLog(
+            "presence_stop_associations_loaded count=${associations.size} sdk=${Build.VERSION.SDK_INT}",
+        )
+        associations.forEach { association ->
+            val associationMac = association.deviceMacAddress?.toString()
+            appendPresenceLog(
+                "id_stop_start association_id=${association.id} mac=$associationMac",
+            )
             runCatching {
                 // Same guard as startObservingPresenceByAssociationId: Builder may be absent on some OEM ROMs.
                 val request = ObservingDevicePresenceRequest.Builder()
@@ -565,22 +628,55 @@ class CompanionDeviceManagerPlugin :
                 getManager().stopObservingDevicePresence(request)
             }.onSuccess {
                 Log.d(tag, "Stopped observing presence for associationId=${association.id}")
+                appendPresenceLog(
+                    "id_stop_success association_id=${association.id} mac=$associationMac",
+                )
             }.onFailure { error ->
-                Log.w(tag, "id-based stop failed for associationId=${association.id} (${error.javaClass.simpleName}), trying legacy MAC fallback", error)
+                val details = describeError(error)
+                Log.w(
+                    tag,
+                    "id-based stop failed for associationId=${association.id} ($details), trying legacy MAC fallback",
+                    error,
+                )
+                appendPresenceLog(
+                    "id_stop_failed association_id=${association.id} mac=$associationMac $details fallback=legacy_mac",
+                )
                 val mac = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    association.deviceMacAddress?.toString()
-                } else null
+                    associationMac
+                } else {
+                    null
+                }
                 if (mac != null) {
+                    appendPresenceLog(
+                        "legacy_stop_start association_id=${association.id} mac=$mac source=id_fallback",
+                    )
                     runCatching {
                         @Suppress("DEPRECATION")
                         getManager().stopObservingDevicePresence(mac)
                     }.onSuccess {
                         Log.d(tag, "Stopped legacy MAC observation for associationId=${association.id} mac=$mac")
+                        appendPresenceLog(
+                            "legacy_stop_success association_id=${association.id} mac=$mac source=id_fallback",
+                        )
                     }.onFailure { legacyError ->
-                        Log.w(tag, "Legacy MAC stop also failed for associationId=${association.id} mac=$mac", legacyError)
+                        val legacyDetails = describeError(legacyError)
+                        Log.w(
+                            tag,
+                            "Legacy MAC stop also failed for associationId=${association.id} mac=$mac $legacyDetails",
+                            legacyError,
+                        )
+                        appendPresenceLog(
+                            "legacy_stop_failed association_id=${association.id} mac=$mac source=id_fallback $legacyDetails",
+                        )
                     }
                 } else {
-                    Log.w(tag, "Unable to stop observing presence for associationId=${association.id}: no MAC available for legacy fallback")
+                    Log.w(
+                        tag,
+                        "Unable to stop observing presence for associationId=${association.id}: no MAC available for legacy fallback $details",
+                    )
+                    appendPresenceLog(
+                        "legacy_stop_unavailable association_id=${association.id} source=id_fallback reason=no_mac id_error=$details",
+                    )
                 }
             }
         }
