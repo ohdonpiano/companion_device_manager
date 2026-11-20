@@ -163,7 +163,9 @@ class CompanionDeviceManagerPlugin :
         }
 
         val associationRequest = buildAssociationRequest(call.arguments as? Map<*, *>)
-        val manager = getManager()
+        val manager = currentActivity.getSystemService(
+			CompanionDeviceManager::class.java
+		)
 
         pendingAssociationResult = result
         pendingAssociationRequest = associationRequest.request
